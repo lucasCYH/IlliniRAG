@@ -88,6 +88,12 @@ python -m streamlit run UI.py
 python -m unittest tests/test_agents.py
 ```
 
+### 4. 執行本地 RAG 品質評估 (Evaluation)
+透過本地 LLM-as-a-judge 與語意相似度演算法，對 RAG 的檢索精準度（Context Relevance）與回答忠實度（Faithfulness）進行量化評估：
+```bash
+PYTHONPATH=. python tests/evaluate_rag.py
+```
+
 ---
 
 ## 🐳 部署與隱私策略
