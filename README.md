@@ -126,3 +126,12 @@ PYTHONPATH=. python tests/evaluate_rag.py
 4. **🧠 單例共享記憶體 (Singleton Memory Sharing)**
    - 專案在 `backend/config.py` 中實現了延遲載入單例，確保在整個 Streamlit 生命週期中只會實例化一個 Embeddings 實體。這解決了在特定平台上多線程重複載入權重時會發生的 PyTorch meta tensor 衝突錯誤，保證了程式的絕對穩定。
 
+---
+
+## 🗺️ 未來研發路線圖與避坑指南 (Roadmap)
+
+本專案定義了四個階段的研發路線圖，包含 SQLite 歷史記憶持久化、個人筆記語意增量同步、混合部署架構、以及多模態圖表與 Setfit 意圖分類器微調的避坑指南。
+
+詳細規劃請參閱：**[roadmap.md](file:///Users/ut/.gemini/antigravity/brain/e4d4dd50-6a44-40f7-a18f-77fe15f736b7/roadmap.md)**。
+
+
