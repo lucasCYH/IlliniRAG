@@ -8,7 +8,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 
-from backend import db, ingestion, retriever, studio, podcast, router
+from backend import db, ingestion, retriever, studio, podcast, router, config
 
 # --- 1. Web UI Basic Settings ---
 st.set_page_config(page_title="Local NotebookLM", layout="wide")
@@ -22,7 +22,7 @@ st.title("📚 Local NotebookLM")
 # --- 2. Resource Loading Area ---
 @st.cache_resource(show_spinner=False)
 def load_heavy_models():
-    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    embeddings = config.get_embeddings()
     llm = Ollama(model="llama3.1", temperature=0)
     from sentence_transformers import CrossEncoder
     reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', max_length=512)
@@ -30,7 +30,7 @@ def load_heavy_models():
 
 @st.cache_resource(show_spinner=False)
 def load_data_connections(_embeddings, _reranker):
-    vector_db = Chroma(persist_directory="./chroma_db", embedding_function=_embeddings)
+    vector_db = Chroma(persist_directory=config.CHROMA_PERSIST_DIR, embedding_function=_embeddings)
     hybrid_retriever = retriever.init_hybrid_retriever(vector_db, reranker=_reranker)
     # Use router retriever to handle global vs fine‑grained queries
     custom_retriever = router.RouterRetriever(vector_db, hybrid_retriever)
@@ -66,19 +66,29 @@ with st.sidebar:
 
     uploaded_file = st.file_uploader("Upload PDF Document", type=["pdf"], key=f"uploader_{st.session_state.uploader_key}")
     if uploaded_file:
-        with st.spinner("Ingesting document..."):
-            # Save temp file
-            temp_path = f"/tmp/{uploaded_file.name}"
-            with open(temp_path, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            # Ingest
-            ingestion.ingest_document(temp_path)
-            st.success(f"Ingested {uploaded_file.name}")
-            # Reset uploader and reload retriever
-            st.session_state.uploader_key += 1
-            load_data_connections.clear()
-            st.rerun()
+        progress_bar = st.progress(0, text="Preparing file...")
+        # Save temp file
+        temp_path = f"/tmp/{uploaded_file.name}"
+        with open(temp_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+        
+        def update_progress(percent, text):
+            progress_bar.progress(percent, text=text)
             
+        # Ingest with progress callback
+        ingestion.ingest_document(temp_path, progress_callback=update_progress)
+        st.success(f"Successfully ingested {uploaded_file.name}")
+        # Reset uploader and reload retriever
+        st.session_state.uploader_key += 1
+        load_data_connections.clear()
+        import time
+        time.sleep(1)
+        st.rerun()
+            
+    st.divider()
+    st.subheader("⚙️ Settings")
+    st.toggle("全域摘要模式 (Global Mode)", key="global_mode", value=False, help="開啟後將強制使用全域大綱/摘要檢索模式；關閉時則依問題自動進行語意路由。")
+
     st.divider()
     st.subheader("Uploaded Documents")
     docs = db.get_all_documents()
@@ -94,6 +104,15 @@ with st.sidebar:
                 vector_db._collection.delete(where={"source": d['filename']})
             except Exception:
                 pass
+            
+            # Also delete summaries
+            try:
+                from backend.summary_hierarchical import _get_chapter_store, _get_section_store
+                _get_chapter_store()._collection.delete(where={"doc_id": d['id']})
+                _get_section_store()._collection.delete(where={"doc_id": d['id']})
+            except Exception:
+                pass
+
             st.toast(f"🗑️ 檔案 **{d['filename']}** 已被刪除", icon="🗑️")
             load_data_connections.clear()
             st.rerun()
@@ -105,46 +124,138 @@ col1, col2 = st.columns([1, 1])
 
 # Left Column: Workspace
 with col1:
-    tab1, tab2, tab3 = st.tabs(["📝 Notes", "🎙️ Studio", "🔍 Document Viewer"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📝 Notes", "🎙️ Studio", "🔍 Document Viewer", "📊 Summary Viewer"])
     
     with tab1:
         st.subheader("Your Notes")
-        new_note = st.text_area("Write a new note...")
+        new_note = st.text_area("Write a new note...", height=100)
         if st.button("Save Note") and new_note:
             db.add_note(new_note)
             st.success("Note saved!")
             st.rerun()
             
+        st.divider()
+        st.subheader("Saved Notes")
+        
+        if "editing_note_id" not in st.session_state:
+            st.session_state.editing_note_id = None
+            
         notes = db.get_all_notes()
-        for note in notes:
-            st.info(note['content'])
+        if not notes:
+            st.caption("No notes saved yet.")
+        else:
+            for note in notes:
+                note_id = note['id']
+                if st.session_state.editing_note_id == note_id:
+                    edited_content = st.text_area(
+                        "Edit Note Content:",
+                        value=note['content'],
+                        key=f"edit_content_{note_id}",
+                        height=100
+                    )
+                    col_save, col_cancel = st.columns([1, 6])
+                    if col_save.button("💾 儲存", key=f"save_note_{note_id}"):
+                        db.update_note(note_id, edited_content)
+                        st.session_state.editing_note_id = None
+                        st.toast("📝 筆記已成功更新", icon="✅")
+                        st.rerun()
+                    if col_cancel.button("❌ 取消", key=f"cancel_note_{note_id}"):
+                        st.session_state.editing_note_id = None
+                        st.rerun()
+                else:
+                    st.info(note['content'])
+                    col_edit, col_del, _ = st.columns([1, 1, 5])
+                    if col_edit.button("📝 編輯", key=f"btn_edit_{note_id}"):
+                        st.session_state.editing_note_id = note_id
+                        st.rerun()
+                    if col_del.button("🗑️ 刪除", key=f"btn_del_note_{note_id}"):
+                        db.delete_note(note_id)
+                        st.toast("🗑️ 筆記已刪除", icon="🗑️")
+                        st.rerun()
+                st.divider()
             
     with tab2:
         st.subheader("Notebook Studio")
-        if st.button("📄 Generate Study Guide"):
-            with st.spinner("Analyzing all documents..."):
-                guide = studio.generate_study_guide()
-                st.markdown(guide)
-                
-        if st.button("🎧 Generate Audio Podcast"):
-            with st.spinner("Writing script and synthesizing voices..."):
-                audio_file, script = podcast.generate_podcast_audio()
-                if audio_file:
-                    st.audio(audio_file)
-                st.markdown("**Podcast Script:**")
-                st.text(script)
+        documents = db.get_all_documents()
+        if not documents:
+            st.info("No documents ingested yet. Upload a PDF to start using the Studio!")
+        else:
+            selected_studio_docs = st.multiselect(
+                "選擇要納入生成範圍的文件 (留空則預設為全部文件)：",
+                options=documents,
+                format_func=lambda d: d["filename"],
+                key="studio_select_docs"
+            )
+            selected_ids = [d["id"] for d in selected_studio_docs] if selected_studio_docs else None
+            
+            if st.button("📄 Generate Study Guide"):
+                with st.spinner("Analyzing selected documents..."):
+                    guide = studio.generate_study_guide(selected_ids)
+                    st.markdown(guide)
+                    
+            if st.button("🎧 Generate Audio Podcast"):
+                with st.spinner("Writing script and synthesizing voices..."):
+                    audio_file, script = podcast.generate_podcast_audio(selected_ids)
+                    if audio_file:
+                        st.audio(audio_file)
+                    st.markdown("**Podcast Script:**")
+                    st.text(script)
                 
     with tab3:
         st.subheader("🔍 Document Viewer")
         st.caption("Rendered preview of your ingested documents.")
-        chunks = db.get_all_parent_chunks_text()
-        if chunks:
-            with st.container(height=500, border=True):
-                # Join chunks and render as markdown
-                full_text = "\n\n---\n\n".join(chunks)
-                st.markdown(full_text)
-        else:
+        documents = db.get_all_documents()
+        if not documents:
             st.info("No documents ingested yet. Upload a PDF from the sidebar to get started!")
+        else:
+            selected_viewer_doc = st.selectbox(
+                "選擇要檢視的檔案：",
+                options=documents,
+                format_func=lambda d: d["filename"],
+                key="viewer_select_doc"
+            )
+            if selected_viewer_doc:
+                chunks = db.get_parent_chunks_by_document(selected_viewer_doc["id"])
+                if chunks:
+                    with st.container(height=500, border=True):
+                        full_text = "\n\n---\n\n".join(chunks)
+                        st.markdown(full_text)
+                else:
+                    st.warning("No content chunks found for this document.")
+
+    with tab4:
+        st.subheader("📊 Summary Viewer")
+        st.caption("Browse chapter & section outlines generated for your documents.")
+        documents = db.get_all_documents()
+        if not documents:
+            st.info("No documents ingested yet. Upload a PDF from the sidebar to generate summaries!")
+        else:
+            selected_doc = st.selectbox(
+                "Select Document to View Summary:",
+                options=documents,
+                format_func=lambda d: d["filename"],
+                key="summary_select_doc"
+            )
+            if selected_doc:
+                from backend import summary_hierarchical
+                with st.spinner("Loading outline hierarchy..."):
+                    hierarchy_data = summary_hierarchical.get_document_hierarchy(selected_doc["id"])
+                    hierarchy = hierarchy_data["hierarchy"]
+                
+                if not hierarchy:
+                    st.warning("No hierarchical summaries found for this document. Try re-uploading to generate them.")
+                else:
+                    st.markdown(f"### Outline of `{hierarchy_data['filename']}`")
+                    for ch_title, ch_info in hierarchy.items():
+                        with st.expander(f"📖 Chapter: {ch_title}", expanded=True):
+                            st.markdown(f"**Chapter Summary:**\n{ch_info['summary']}")
+                            
+                            if ch_info["sections"]:
+                                st.markdown("---")
+                                st.markdown("**Sections in this chapter:**")
+                                for sec_title, sec_summary in ch_info["sections"].items():
+                                    st.markdown(f"##### 🔗 {sec_title}")
+                                    st.info(sec_summary)
 
 # Right Column: Chat Interface
 with col2:
@@ -166,16 +277,53 @@ with col2:
             st.markdown(user_input)
             
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
+            with st.spinner("Thinking... (The first global query may take a few seconds to load the routing model)"):
                 try:
+                    # Clear routing state caches before invoking
+                    st.session_state["last_routing_decision"] = ""
+                    st.session_state["last_agent_name"] = ""
+
                     response = rag_chain.invoke({
                         "input": user_input,
                         "chat_history": st.session_state.chat_history
                     })
                     answer = response["answer"]
+                    
+                    # Process and format citations
+                    citation_texts = []
+                    seen_citations = set()
+                    for doc in response["context"]:
+                        source = doc.metadata.get("source", "Unknown")
+                        chapter_info = doc.metadata.get("chapter_info")
+                        if not chapter_info:
+                            # Build context representation for needle matches
+                            h1 = doc.metadata.get("Header 1")
+                            h2 = doc.metadata.get("Header 2")
+                            if h1 and h2:
+                                chapter_info = f"{h1} > {h2}"
+                            elif h1:
+                                chapter_info = h1
+                            else:
+                                chapter_info = "Section details"
+                        
+                        citation = f"`{source}` ({chapter_info})"
+                        if citation not in seen_citations:
+                            seen_citations.add(citation)
+                            citation_texts.append(citation)
+
+                    # Append formatted sources to response
+                    if citation_texts:
+                        answer += "\n\n**Sources:**\n" + "\n".join([f"- {c}" for c in citation_texts])
+                    
+                    # Display routing decision information
+                    decision_reason = st.session_state.get("last_routing_decision", "")
+                    agent_name = st.session_state.get("last_agent_name", "")
+                    if agent_name:
+                        answer += f"\n\n*(Routed via **{agent_name}** - Reason: {decision_reason})*"
+                        
                     st.markdown(answer)
                     
-                    with st.expander("🔍 View Source Documents"):
+                    with st.expander("🔍 View Raw Context"):
                         for i, doc in enumerate(response["context"]):
                             source = doc.metadata.get('source', 'Unknown')
                             st.write(f"**Source {i+1}: {source}**")

@@ -1,0 +1,26 @@
+# Python virtual environments
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Local databases and vector stores
+chroma_db/
+notebook_store.db
+notebook_store.db-journal
+parent_store.json
+parent_store.json.bak
+
+# macOS system files
+.DS_Store
+
+# Temporary files & Logs
+/tmp/
+*.log
+
+# Scratch scripts & temporary test outputs
+scratch/
+podcast.wav
+podcast_output.wav
+a.wav
+output.wav

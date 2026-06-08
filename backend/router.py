@@ -7,11 +7,12 @@ Index (global view) or the existing hybrid parent/child retriever (needle view).
 """
 
 from typing import List, Any
-
+import streamlit as st
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
 
-from . import config, summary_index
+from backend.agents import AgentRouter
+from . import config
 
 
 class RouterRetriever(BaseRetriever):
@@ -27,38 +28,40 @@ class RouterRetriever(BaseRetriever):
 
     vector_db: Any = None
     hybrid_retriever: BaseRetriever = None
+    router: AgentRouter = None
+
     def __init__(self, vector_db: Any, hybrid_retriever: BaseRetriever):
         super().__init__()
         object.__setattr__(self, "vector_db", vector_db)
         object.__setattr__(self, "hybrid_retriever", hybrid_retriever)
+        object.__setattr__(self, "router", AgentRouter(hybrid_retriever))
 
     class Config:
         arbitrary_types_allowed = True
-    def _is_global_query(self, query: str) -> bool:
-        """Determine if *query* should be handled by the summary index.
-
-        Heuristics:
-        * Token count exceeds ``config.GLOBAL_QUERY_THRESHOLD``.
-        * Presence of any keyword in ``config.GLOBAL_KEYWORDS`` (case‑insensitive).
-        """
-        # Token count heuristic (simple whitespace split)
-        token_count = len(query.split())
-        if token_count >= config.GLOBAL_QUERY_THRESHOLD:
-            return True
-        # Keyword heuristic
-        lowered = query.lower()
-        for kw in config.GLOBAL_KEYWORDS:
-            if kw.lower() in lowered:
-                return True
-        return False
 
     def _get_relevant_documents(self, query: str, *, run_manager=None) -> List[Document]:
         """Route the query and return relevant documents.
         """
-        if config.ENABLE_SUMMARY_INDEX and self._is_global_query(query):
-            # Use the summary collection
-            return summary_index.search_summary(query, k=5)
-        else:
-            # Defer to the hybrid retriever for fine‑grained results
-            # ``HybridParentRetriever`` implements ``_get_relevant_documents``
-            return self.hybrid_retriever._get_relevant_documents(query, run_manager=run_manager)
+        # Read user's UI toggle preference if in Streamlit context
+        force_mode = None
+        try:
+            if st.session_state.get("global_mode", False):
+                force_mode = "global"
+        except Exception:
+            pass
+
+        # Perform routing
+        agent, decision_reason = self.router.route(query, force_mode=force_mode)
+        
+        # Save decision for UI visualization
+        try:
+            st.session_state["last_routing_decision"] = decision_reason
+            st.session_state["last_agent_name"] = agent.name
+        except Exception:
+            pass
+            
+        print(f"[RouterRetriever] Routing query '{query}' to agent '{agent.name}' (Reason: {decision_reason})")
+        
+        # Retrieve documents
+        return agent.retrieve(query, k=5)
+

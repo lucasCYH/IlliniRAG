@@ -6,21 +6,30 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 import PDF2MD
 from backend import db, config
 
-CHROMA_PERSIST_DIR = "./chroma_db"
+CHROMA_PERSIST_DIR = config.CHROMA_PERSIST_DIR
 
 def init_embeddings():
-    return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    return config.get_embeddings()
 
-def ingest_document(file_path):
+def ingest_document(file_path, progress_callback=None):
     print(f"Ingesting document: {file_path}")
     
+    if progress_callback:
+        progress_callback(5, "Converting PDF to Markdown format...")
+        
     # 1. Process PDF to Markdown
     docs = PDF2MD.process_pdf_to_markdown(file_path)
     
+    if progress_callback:
+        progress_callback(15, "Registering document in SQLite store...")
+        
     # 2. Add document to SQLite
     filename = os.path.basename(file_path)
     doc_id = db.add_document(filename)
     
+    if progress_callback:
+        progress_callback(25, "Splitting document into parent and child chunks...")
+        
     # 3. Setup Splitters
     parent_splitter = RecursiveCharacterTextSplitter(
         chunk_size=2000,
@@ -55,7 +64,9 @@ def ingest_document(file_path):
             child_chunks.append(s_doc)
             
     print(f"Adding {len(child_chunks)} child chunks to ChromaDB...")
-    
+    if progress_callback:
+        progress_callback(40, f"Indexing {len(child_chunks)} child chunks to Chroma database...")
+        
     # 5. Add to ChromaDB
     embeddings = init_embeddings()
     vector_db = Chroma(
@@ -65,17 +76,28 @@ def ingest_document(file_path):
     vector_db.add_documents(child_chunks)
     vector_db.persist()
     print(f"✅ Persisted {len(child_chunks)} child chunks to ChromaDB")
-
-    # ---- Document Summary Index ----
-    if config.ENABLE_SUMMARY_INDEX:
-        from . import summary_index
-        # Combine all parent documents' raw text for summary (simple concatenation)
-        full_text = "\n\n".join([p_doc.page_content for p_doc in parent_docs])
-        summary = summary_index.generate_summary(full_text)
-        summary_index.add_summary(doc_id, summary, filename)
-        print(f"📝 Summary generated and stored for document ID {doc_id}")
-
     
+    if progress_callback:
+        progress_callback(55, "Analyzing document structure to generate chapter/section outlines...")
+        
+    # ---- Hierarchical Document Summary Index ----
+    if config.ENABLE_SUMMARY_INDEX:
+        from backend import summary_hierarchical
+        
+        def sub_progress(percent, text):
+            if progress_callback:
+                # Scale sub-progress from 55% to 95%
+                scaled = 55 + int(percent * 0.40)
+                progress_callback(scaled, text)
+                
+        summary_hierarchical.generate_hierarchical_summary(
+            docs, doc_id, filename, progress_callback=sub_progress
+        )
+        print(f"📝 Hierarchical summaries generated and stored for document ID {doc_id}")
+    
+    if progress_callback:
+        progress_callback(100, "Successfully completed document ingestion!")
+        
     print("Ingestion complete!")
     return len(parent_docs), len(child_chunks)
 

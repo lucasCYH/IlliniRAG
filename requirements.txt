@@ -1,0 +1,11 @@
+streamlit
+langchain
+langchain-community
+langchain-core
+chromadb
+sentence-transformers
+huggingface-hub
+langchain-ollama
+pydantic
+pymupdf4llm
+rank_bm25
