@@ -78,3 +78,19 @@ python -m unittest tests/test_agents.py
 本專案支援**本地 Docker 離線部署**與 **Fly.io 雲端掛載加密磁碟卷**的兩種方案，所有資料庫與向量庫路徑均已環境變數參數化，保證資料隱私安全。
 
 詳細部署步驟請參閱：**[deployment/README.md](file:///Users/ut/Desktop/IlliniRAG/deployment/README.md)**。
+
+---
+
+## 👥 使用體驗一致性保證 (Ensuring Consistent Experience)
+
+為了確保不同環境（作業系統、硬體配置、Python 版本）下的使用者都能獲得完全一致的優質體驗，本專案在架構上進行了以下設計：
+
+1. **📦 隔離的虛擬環境 (Python Virtualenv)**
+   - 透過 `python3 -m venv .venv` 將專案依賴與本機系統環境完全隔離，避免因系統全域套件衝突而報錯。
+2. **🐳 容器化標準環境 (Dockerization)**
+   - 本專案完整配備了 `Dockerfile`。使用 Docker 啟動能完全屏蔽 Windows、Mac 與 Linux 之間的文件讀取、路徑處理與 Python 編譯環境差異，實現「一鍵啟動，處處相同」的體驗。
+3. **🔄 語意模型自動下載與本地快取**
+   - 專案中所使用的向量嵌入模型 (`all-MiniLM-L6-v2`) 與語意路由器模型 (`paraphrase-MiniLM-L6-v2`) 會在系統**首次執行時自動從 Hugging Face 下載並快取至本地**。使用者無需進行複雜的手動模型下載與設定，且 SentenceTransformers 會自動根據硬體（如 M-series MPS、CUDA GPU、或普通 CPU）選擇最佳運算加速，確保流暢度一致。
+4. **🧠 單例共享記憶體 (Singleton Memory Sharing)**
+   - 專案在 `backend/config.py` 中實現了延遲載入單例，確保在整個 Streamlit 生命週期中只會實例化一個 Embeddings 實體。這解決了在特定平台上多線程重複載入權重時會發生的 PyTorch meta tensor 衝突錯誤，保證了程式的絕對穩定。
+
