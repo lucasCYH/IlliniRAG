@@ -94,6 +94,15 @@ python -m unittest tests/test_agents.py
 PYTHONPATH=. python tests/evaluate_rag.py
 ```
 
+#### 📖 學術引用與評估依據 (Academic References)
+本評估套件之指標設計與目標分數 (Goal) 均嚴格遵循以下主流學術研究之理論基礎：
+- **RAGAS 評估框架 (Context Relevance / Faithfulness)**: 
+  *Es et al., "RAGAS: Automated Evaluation of Retrieval Augmented Generation" (2023).* [arXiv:2309.15217](https://arxiv.org/abs/2309.15217)
+- **LLM-as-a-Judge 裁判機制 (LLM Evaluation)**: 
+  *Zheng et al., "Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena" (2023).* [arXiv:2306.05685](https://arxiv.org/abs/2306.05685)
+- **Sentence-BERT 語意嵌入餘弦相似度基準**: 
+  *Reimers & Gurevych, "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks" (2019).* [arXiv:1908.10084](https://arxiv.org/abs/1908.10084)
+
 ---
 
 ## 🐳 部署與隱私策略
