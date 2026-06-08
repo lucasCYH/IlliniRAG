@@ -11,6 +11,23 @@ IlliniRAG 是一個完全本地化、保護隱私的檢索增強生成 (RAG) 助
 
 ---
 
+## 🌟 工業級 RAG 優化亮點 (R&D‑Grade Highlights)
+
+本專案拒絕簡單的「Toy RAG」玩具套路，在架構上完全對齊**工業界生產級 RAG** 的核心優化指標：
+
+1. **🚀 雙路混合檢索 (Hybrid Search: Dense + Sparse)**
+   - 整合了 **ChromaDB 語意向量檢索 (Dense)** 與 **BM25 關鍵字檢索 (Sparse)**。
+   - 同時保障了對「語意意圖」與「特定術語/代號（如課程代號、法規條款）」的召回率 (Recall)。
+2. **🎯 Cross‑Encoder 深度重排 (Reranking)**
+   - 檢索出的候選文檔會通過本地的 **Cross‑Encoder 重排模型** (`ms-marco-MiniLM-L-6-v2`) 進行二次排序，只將關聯度最高的 Top-K 文本送入 LLM。
+   - 這是大幅降低 LLM 幻覺、提升回答精確度與 Context Precision 的工業界標準黃金架構。
+3. **🧠 語意代理路由器 (Semantic Agent Routing)**
+   - 擺脫了傳統簡單的關鍵字路由，採用 SentenceTransformers 語意向量分類器，能自動識別問題是「局部細節 (Needle)」還是「全域大綱 (Global)」，最大化減輕大語言模型在長文本上的檢索天花板。
+4. **📊 生產級前端 Web 控制台**
+   - 摒棄 CLI 腳本，使用 Streamlit 開發完整的前端 Dashboard，具備 Ingest 百分比進度條、摺疊大綱樹狀瀏覽、分頁文檔閱讀與 Notes 就地 CRUD 編輯，實測體驗極佳。
+
+---
+
 ## ✨ 進階核心功能
 
 * **📖 階層式文件大綱索引 (Hierarchical Summary Index)**
