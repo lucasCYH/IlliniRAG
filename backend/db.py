@@ -13,9 +13,15 @@ def init_db():
         CREATE TABLE IF NOT EXISTS documents (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             filename TEXT UNIQUE,
+            md5_hash TEXT UNIQUE,
             uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Migration: Add md5_hash column if it doesn't exist yet in older databases
+    try:
+        cursor.execute("ALTER TABLE documents ADD COLUMN md5_hash TEXT UNIQUE")
+    except sqlite3.OperationalError:
+        pass
     # Table for parent chunks (replaces parent_store.json)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS parent_chunks (
@@ -35,21 +41,68 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Virtual table for SQLite FTS5 Full-Text Search
+    cursor.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS parent_chunks_fts USING fts5(
+            parent_id,
+            page_content,
+            content='parent_chunks',
+            content_rowid='id'
+        )
+    """)
+    # Triggers to keep FTS index synchronized on inserts, deletes, and updates
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS parent_chunks_ai AFTER INSERT ON parent_chunks BEGIN
+            INSERT INTO parent_chunks_fts(rowid, parent_id, page_content) VALUES (new.id, new.parent_id, new.page_content);
+        END;
+    """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS parent_chunks_ad AFTER DELETE ON parent_chunks BEGIN
+            INSERT INTO parent_chunks_fts(parent_chunks_fts, rowid, parent_id, page_content) VALUES('delete', old.id, old.parent_id, old.page_content);
+        END;
+    """)
+    cursor.execute("""
+        CREATE TRIGGER IF NOT EXISTS parent_chunks_au AFTER UPDATE ON parent_chunks BEGIN
+            INSERT INTO parent_chunks_fts(parent_chunks_fts, rowid, parent_id, page_content) VALUES('delete', old.id, old.parent_id, old.page_content);
+            INSERT INTO parent_chunks_fts(rowid, parent_id, page_content) VALUES(new.id, new.parent_id, new.page_content);
+        END;
+    """)
+    # Populate FTS table with any existing pre-migration chunks
+    cursor.execute("""
+        INSERT OR IGNORE INTO parent_chunks_fts(rowid, parent_id, page_content)
+        SELECT id, parent_id, page_content FROM parent_chunks;
+    """)
     conn.commit()
     conn.close()
 
-def add_document(filename):
+def add_document(filename, md5_hash=None):
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO documents (filename) VALUES (?)", (filename,))
+        cursor.execute("INSERT INTO documents (filename, md5_hash) VALUES (?, ?)", (filename, md5_hash))
         conn.commit()
         doc_id = cursor.lastrowid
     except sqlite3.IntegrityError:
-        cursor.execute("SELECT id FROM documents WHERE filename = ?", (filename,))
+        if md5_hash:
+            cursor.execute("SELECT id FROM documents WHERE md5_hash = ?", (md5_hash,))
+        else:
+            cursor.execute("SELECT id FROM documents WHERE filename = ?", (filename,))
         doc_id = cursor.fetchone()[0]
     conn.close()
     return doc_id
+
+def get_document_by_md5(md5_hash):
+    """Retrieve document by its MD5 hash fingerprint."""
+    if not md5_hash:
+        return None
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, filename FROM documents WHERE md5_hash = ?", (md5_hash,))
+    row = cursor.fetchone()
+    conn.close()
+    if row:
+        return {"id": row[0], "filename": row[1]}
+    return None
 
 def add_parent_chunk(document_id, parent_id, page_content, metadata):
     conn = sqlite3.connect(DB_PATH)
@@ -146,6 +199,49 @@ def update_note(note_id, content):
     cursor.execute("UPDATE notes SET content = ? WHERE id = ?", (content, note_id))
     conn.commit()
     conn.close()
+
+def search_parent_chunks_fts(query_str: str, limit: int = 5) -> list:
+    """Perform BM25 search on parent chunks using SQLite FTS5 virtual table."""
+    import re
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    # Format query for FTS5 (remove non-alphanumeric characters to avoid query syntax errors)
+    clean_query = re.sub(r'[^\w\s]', ' ', query_str).strip()
+    
+    # We split query terms and search for them matching, or simple matching.
+    # If the search query contains quotes or operators, FTS5 MATCH might throw.
+    # So we wrap in double quotes or fallback to LIKE if FTS query syntax is invalid.
+    try:
+        cursor.execute("""
+            SELECT pc.parent_id, pc.page_content, pc.metadata_json, bm25(parent_chunks_fts) as rank
+            FROM parent_chunks_fts fts
+            JOIN parent_chunks pc ON pc.id = fts.rowid
+            WHERE parent_chunks_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+        """, (clean_query, limit))
+        rows = cursor.fetchall()
+    except sqlite3.OperationalError as e:
+        print(f"[FTS5 Search] Query syntax failed for '{clean_query}': {e}. Falling back to LIKE.")
+        cursor.execute("""
+            SELECT parent_id, page_content, metadata_json, 1.0 as rank
+            FROM parent_chunks
+            WHERE page_content LIKE ?
+            LIMIT ?
+        """, (f"%{clean_query}%", limit))
+        rows = cursor.fetchall()
+        
+    conn.close()
+    
+    results = []
+    for row in rows:
+        results.append({
+            "parent_id": row[0],
+            "page_content": row[1],
+            "metadata": json.loads(row[2]),
+            "rank": row[3]
+        })
+    return results
 
 # Initialize DB when module is loaded
 init_db()

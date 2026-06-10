@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Any
 from pydantic import Field
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -11,7 +11,7 @@ from backend import db
 
 class HybridParentRetriever(BaseRetriever):
     vector_db: Chroma = Field(description="The underlying vector store for child chunks")
-    bm25_retriever: BM25Retriever = Field(description="BM25 retriever for parent chunks")
+    bm25_retriever: Any = Field(description="BM25 retriever for parent chunks", default=None)
     reranker: CrossEncoder = Field(description="CrossEncoder for reranking", default=None)
     search_k: int = 10
     final_k: int = 3
@@ -39,9 +39,16 @@ class HybridParentRetriever(BaseRetriever):
                     )
                     dense_parent_docs.append(doc)
                     
-        # 2. Keyword Search (Sparse) - get parent chunks from BM25
-        # bm25 search directly on parents is fast enough
-        sparse_docs = self.bm25_retriever.invoke(query)
+        # 2. Keyword Search (Sparse) - get parent chunks from SQLite FTS5 BM25
+        sparse_results = db.search_parent_chunks_fts(query, limit=5)
+        sparse_docs = []
+        for res in sparse_results:
+            doc = Document(
+                page_content=res["page_content"],
+                metadata=res["metadata"]
+            )
+            doc.metadata["parent_id"] = res["parent_id"]
+            sparse_docs.append(doc)
         
         # Combine unique documents
         all_docs = {}
@@ -68,25 +75,10 @@ class HybridParentRetriever(BaseRetriever):
         return candidate_docs[:self.final_k]
 
 def init_hybrid_retriever(vector_db, reranker=None):
-    print("Initializing BM25 Retriever from SQLite parent chunks...")
-    conn = db.sqlite3.connect(db.DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT parent_id, page_content, metadata_json FROM parent_chunks")
-    rows = cursor.fetchall()
-    conn.close()
+    print("Initializing SQLite FTS5 BM25 search database...")
     
-    parent_docs = []
-    for row in rows:
-        metadata = json.loads(row[2])
-        metadata["parent_id"] = row[0]
-        parent_docs.append(Document(page_content=row[1], metadata=metadata))
-        
-    if parent_docs:
-        bm25_retriever = BM25Retriever.from_documents(parent_docs)
-        bm25_retriever.k = 5 # fetch top 5 from sparse
-    else:
-        # Dummy retriever if no documents exist, use a non-empty string to avoid ZeroDivisionError
-        bm25_retriever = BM25Retriever.from_texts(["empty_database_dummy_document"])
+    # We no longer need to load all parent documents in-memory for BM25Retriever!
+    # SQLite FTS5 is queried directly on every request.
     
     if reranker is None:
         print("Loading local CrossEncoder for Reranking (cross-encoder/ms-marco-MiniLM-L-6-v2)...")
@@ -94,7 +86,7 @@ def init_hybrid_retriever(vector_db, reranker=None):
     
     retriever = HybridParentRetriever(
         vector_db=vector_db,
-        bm25_retriever=bm25_retriever,
+        bm25_retriever=None,
         reranker=reranker,
         search_k=10,
         final_k=3

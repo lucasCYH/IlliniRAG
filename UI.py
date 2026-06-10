@@ -195,7 +195,16 @@ with col1:
                     
             if st.button("🎧 Generate Audio Podcast"):
                 with st.spinner("Writing script and synthesizing voices..."):
-                    audio_file, script = podcast.generate_podcast_audio(selected_ids)
+                    res = podcast.generate_podcast_audio(selected_ids)
+                    warning_msg = None
+                    if res and len(res) == 3:
+                        audio_file, script, warning_msg = res
+                    else:
+                        audio_file, script = res
+                        
+                    if warning_msg:
+                        st.warning(warning_msg)
+                        
                     if audio_file:
                         st.audio(audio_file)
                     st.markdown("**Podcast Script:**")

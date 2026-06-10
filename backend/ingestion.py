@@ -11,9 +11,33 @@ CHROMA_PERSIST_DIR = config.CHROMA_PERSIST_DIR
 def init_embeddings():
     return config.get_embeddings()
 
+import hashlib
+
+def get_file_md5(file_path):
+    hash_md5 = hashlib.md5()
+    with open(file_path, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hash_md5.update(chunk)
+    return hash_md5.hexdigest()
+
 def ingest_document(file_path, progress_callback=None):
     print(f"Ingesting document: {file_path}")
     
+    file_md5 = get_file_md5(file_path)
+    existing_doc = db.get_document_by_md5(file_md5)
+    
+    if existing_doc:
+        print(f"Document already ingested (MD5 match: {file_md5}). Skipping parsing.")
+        if progress_callback:
+            progress_callback(100, f"Cache Hit: '{existing_doc['filename']}' already exists.")
+        
+        conn = db.sqlite3.connect(db.DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM parent_chunks WHERE document_id = ?", (existing_doc["id"],))
+        parent_count = cursor.fetchone()[0]
+        conn.close()
+        return parent_count, parent_count * 5
+
     if progress_callback:
         progress_callback(5, "Converting PDF to Markdown format...")
         
@@ -25,7 +49,7 @@ def ingest_document(file_path, progress_callback=None):
         
     # 2. Add document to SQLite
     filename = os.path.basename(file_path)
-    doc_id = db.add_document(filename)
+    doc_id = db.add_document(filename, md5_hash=file_md5)
     
     if progress_callback:
         progress_callback(25, "Splitting document into parent and child chunks...")
