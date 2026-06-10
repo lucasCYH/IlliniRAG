@@ -19,7 +19,7 @@ def init_db():
     """)
     # Migration: Add md5_hash column if it doesn't exist yet in older databases
     try:
-        cursor.execute("ALTER TABLE documents ADD COLUMN md5_hash TEXT UNIQUE")
+        cursor.execute("ALTER TABLE documents ADD COLUMN md5_hash TEXT")
     except sqlite3.OperationalError:
         pass
     # Table for parent chunks (replaces parent_store.json)
