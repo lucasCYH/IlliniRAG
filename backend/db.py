@@ -5,6 +5,14 @@ from backend import config
 
 DB_PATH = config.DB_PATH
 
+# Override sqlite3.connect to set a 30-second timeout, preventing "database is locked" in Streamlit
+_original_connect = sqlite3.connect
+def connect_with_timeout(*args, **kwargs):
+    if "timeout" not in kwargs:
+        kwargs["timeout"] = 30.0
+    return _original_connect(*args, **kwargs)
+sqlite3.connect = connect_with_timeout
+
 def init_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -83,11 +91,24 @@ def add_document(filename, md5_hash=None):
         conn.commit()
         doc_id = cursor.lastrowid
     except sqlite3.IntegrityError:
-        if md5_hash:
-            cursor.execute("SELECT id FROM documents WHERE md5_hash = ?", (md5_hash,))
+        # IntegrityError is triggered by the unique filename constraint.
+        # Find the existing document by filename and update its md5_hash if currently NULL.
+        cursor.execute("SELECT id, md5_hash FROM documents WHERE filename = ?", (filename,))
+        row = cursor.fetchone()
+        if row:
+            doc_id = row[0]
+            existing_md5 = row[1]
+            if md5_hash and not existing_md5:
+                cursor.execute("UPDATE documents SET md5_hash = ? WHERE id = ?", (md5_hash, doc_id))
+                conn.commit()
         else:
-            cursor.execute("SELECT id FROM documents WHERE filename = ?", (filename,))
-        doc_id = cursor.fetchone()[0]
+            # Fallback if query by filename somehow returned nothing
+            if md5_hash:
+                cursor.execute("SELECT id FROM documents WHERE md5_hash = ?", (md5_hash,))
+                res = cursor.fetchone()
+                doc_id = res[0] if res else None
+            else:
+                doc_id = None
     conn.close()
     return doc_id
 
