@@ -41,6 +41,8 @@
     *   支援在閱讀文件的同時，隨手記錄、就地編輯（In-place Edit）與刪除學習筆記，所有數據持久化存儲於本地 SQLite 數據庫。
 5.  **🔍 分頁 Document Viewer**
     *   將導入的文件按 Markdown Chunks 進行清晰的分頁呈現，免除在 PDF 閱讀器和 AI 對話框之間來回切換的痛苦。
+6.  **🛡️ 實時線上自我 RAG 護欄 (Online Self-RAG Guardrail)**
+    *   **實時幻覺攔截**：在 LLM 生成答案後，先不直接輸出，而是利用同一單例 Llama 3.1 執行實時 Faithfulness 評估。若評分低於 4.0/5.0，則自動啟用拒絕/備援機制（Fallback），輸出統一的道歉與警報訊息，並在 UI 隱藏原文 Chunks，防止用戶接收到未經驗證的幻覺內容。
 
 ---
 
@@ -240,6 +242,15 @@ graph TD
     1.  **批次 JSON 結構化輸出 (Batch JSON Generation)**：重新設計了 `backend/summary_hierarchical.py` 的架構。先將章節（Chapter）及其底下所有的子段落（Sections）進行關聯綁定。在向 Ollama 發送請求時，開啟 `format=\"json\"` 模式，利用一個 Prompt 同時請求該章節摘要以及所有子段落的摘要，讓 LLM 輸出符合約定 Schema 的 JSON 對象。這將 LLM 呼叫次數**減少了 60%-75%**，整體導入時間縮短至 2 分鐘內，同時實作了健壯的單獨補齊（Fallback）備援機制。
     2.  **UI 快慢路徑設計 (UI Ingestion Fast-Path Toggle)**：在 Streamlit 側邊欄 Settings 中新增一個 `啟用文件摘要索引 (Generate Summaries)` 的開關。若使用者此時不需要全域大綱問答，可將其關閉，系統會直接跳過大綱生成模組，直接將父子文檔寫入資料庫與向量庫，將導入時間**壓縮至 4.4 秒內 (提升約 28 倍速度)**，實現零阻礙的即時閱讀。
 
+### 挑戰 6：本地資源限制下實時自我 RAG 護欄的延遲與記憶體衝突
+*   **問題發現**：引入線上護欄（Online Guardrail）意味著每次問答都需要執行額外的 LLM-as-a-Judge 檢驗。如果直接新增另一個 LLM 實例，會立即導致 Apple Silicon 上的 GPU 記憶體爆滿崩潰；且如果判定過程涉及多次 Prompt 交互，會讓問答延遲增加數倍。
+*   **底層分析**：本地硬體環境對記憶體極度敏感，因此必須複用同一個 Llama 3.1 執行個體（Singleton）。此外，多步式的「提取聲明 $\rightarrow$ 分別判斷蘊含 $\rightarrow$ 計算評分」雖然準確，但會帶來多次 LLM 呼叫的疊加延遲。
+*   **解決方案**：
+    我們在 `step3_query.py` 中實現了**單次呼叫 Chain-of-Thought 線上護欄管線**：
+    1.  **單次批次 Prompt 設計**：精心編寫了 `GUARDRAIL_PROMPT`，命令 Llama 3.1 在**單次呼叫中同時執行**「聲明提取、與原文 Direct Entailment 蘊含比對、輸出評分」三項工作，將原本 3 次 LLM 呼叫壓縮為 1 次。
+    2.  **單例複用**：直接將 `UI.py` 初始化的 singleton `llm` 傳遞給 `step3_query`，不新增任何模型實體，確保 0 記憶體額外開銷。
+    3.  **動態 UI 降級**：若評分低於 4.0，攔截輸出並回傳 `[ONLINE GUARDRAIL BREACHED - FALLBACK ACTIVATED]` 的備援道歉，且在 UI 中動態隱藏 Raw Context 元件，防止幻覺資訊對使用者產生誤導。
+
 ---
 
 ## 🧪 品質量化評估 (RAG Quality Evaluation)
@@ -336,3 +347,4 @@ graph TD
 *   **Architected a lightweight semantic centroid router** to dispatch user intents within 10ms without heavy LLM calls, and implemented a multi-processing TTS pipeline utilizing Sequence-ID sorting to sync multi-host academic podcasts without race conditions.
 *   **Optimized the local ingestion pipeline** by implementing structured batch JSON summarization (reducing LLM calls by 60%+) and designing a UI-controlled fast-path toggle, compressing document upload times from minutes to under 5 seconds (a 28x speedup).
 *   **Integrated a standardized RAGAS framework** (LLM-as-a-judge) to quantitatively evaluate system performance, improving context relevance by 52% and faithfulness (reducing hallucinations) by 46% (4.7/5.0 score).
+*   **Implemented an online Self-RAG guardrail** utilizing the singleton Llama 3.1 instance, executing statement extraction and entailment verification in a single batch prompt to intercept hallucinations in real-time, enforcing a 4.0/5.0 faithfulness threshold.

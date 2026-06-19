@@ -23,20 +23,24 @@ IlliniRAG 是一個完全本地化、保護隱私的檢索增強生成 (RAG) 助
    - 這是大幅降低 LLM 幻覺、提升回答精確度與 Context Precision 的工業界標準黃金架構。
 3. **🧠 語意代理路由器 (Semantic Agent Routing)**
    - 擺脫了傳統簡單的關鍵字路由，採用 SentenceTransformers 語意向量分類器，能自動識別問題是「局部細節 (Needle)」還是「全域大綱 (Global)」，最大化減輕大語言模型在長文本上的檢索天花板。
-4. **📊 生產級前端 Web 控制台**
+4. **🛡️ 實時線上自我 RAG 護欄 (Online Self-RAG Guardrail)**
+   - 將離線評估的 LLM-as-a-judge 蘊含判定移至實時推演流程。當生成答案的 Faithfulness 評分低於 4.0/5.0（偵測到幻覺）時，即時攔截輸出，改為安全的備援拒絕回覆，防範本地資源限制下 LLM 偶發的胡言亂語。
+5. **📊 生產級前端 Web 控制台**
    - 摒棄 CLI 腳本，使用 Streamlit 開發完整的前端 Dashboard，具備 Ingest 百分比進度條、摺疊大綱樹狀瀏覽、分頁文檔閱讀與 Notes 就地 CRUD 編輯，實測體驗極佳。
 
 ---
 
 ## ✨ 進階核心功能
 
+* **🛡️ 線上自我糾錯與安全防範機制 (Self-Correction & Fallback Guardrail)**
+  - 基於 Llama 3.1 8B 共用實體，採用思維鏈 (Chain-of-thought) 自動提取原子陳述並與檢索父段落進行蘊含檢驗。若未達 4.0 門檻則觸發拒絕機制並寫入警報日誌，且自動在 UI 隱藏相關的 Raw Context 以防混淆。
 * **📖 階層式文件大綱索引 (Hierarchical Summary Index)**
   - 根據 PDF 的標題層級自動進行語意分組，為每個 Chapter 與 Section 生成獨立大綱摘要。
   - 提供 **📊 Summary Viewer** 樹狀摺疊元件，使用者可逐層展開閱讀大綱，極適合快速檢視論文方向。
 * **🧠 語意代理路由器 (Embedding Agent Router)**
   - 使用 SentenceTransformers 語意分類器，自動將問題分流至 **GlobalAgent**（全域大綱檢索）或 **NeedleAgent**（混合細節檢索），並在回答底部標記 Sources 來源與 Routing 路由決策日誌。
 * **🧪 通用學術標題預處理器 (Universal Academic Header Promoter)**
-  - 自適應學術論文的雙欄排版與多樣標題格式（如 YOLOv4 的 `**1. Introduction**` 與 OmniVoice 的 `**1** **Introduction**`），並能自動過濾圖表與廣播劇對白等雜訊，確保任何論文皆能切分出精確大綱。
+  - 自適應學術論文的雙欄排版與多樣標題格式（如 YOLOv4 的 `**1. Introduction**` 與 OmniVoice 的 `**1** **Introduction**`），並能自動過濾圖表與廣播劇對白等雜訊，確保 any 論文皆能切分出精確大綱。
 * **📝 Notes 就地編輯管理 (CRUD)**
   - 支援筆記的建立、就地 (In-place) 編輯修改與刪除，大幅提升筆記記錄體驗。
 * **🔍 分頁 Document Viewer & Studio 篩選**
@@ -83,9 +87,13 @@ python -m streamlit run UI.py
 打開瀏覽器訪問 `http://localhost:8501`。
 
 ### 3. 執行單元測試
-執行單元測試驗證代理人與大綱 fallback 邏輯：
+執行單元測試驗證代理人與線上護欄邏輯：
 ```bash
+# 驗證代理路由與大綱生成
 python -m unittest tests/test_agents.py
+
+# 驗證線上自我 RAG 護欄與幻覺攔截
+python -m unittest tests/test_guardrail.py
 ```
 
 ### 4. 執行本地 RAG 品質評估 (Evaluation)

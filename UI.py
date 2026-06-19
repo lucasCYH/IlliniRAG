@@ -387,51 +387,58 @@ with col2:
             with st.chat_message("assistant"):
                 with st.spinner("Thinking... (The first global query may take a few seconds to load the routing model)"):
                     try:
-                        response = rag_chain.invoke({
-                            "input": user_input,
-                            "chat_history": st.session_state.chat_history
-                        })
+                        import step3_query
+                        response = step3_query.execute_query_with_guardrail(
+                            rag_chain=rag_chain,
+                            llm=llm,
+                            user_input=user_input,
+                            chat_history=st.session_state.chat_history
+                        )
                         answer = response["answer"]
                         
-                        # 處理與格式化引用來源
-                        citation_texts = []
-                        seen_citations = set()
-                        for doc in response["context"]:
-                            source = doc.metadata.get("source", "Unknown")
-                            chapter_info = doc.metadata.get("chapter_info")
-                            if not chapter_info:
-                                h1 = doc.metadata.get("Header 1")
-                                h2 = doc.metadata.get("Header 2")
-                                if h1 and h2:
-                                    chapter_info = f"{h1} > {h2}"
-                                elif h1:
-                                    chapter_info = h1
-                                else:
-                                    chapter_info = "Section details"
-                                
-                                citation = f"`{source}` ({chapter_info})"
-                                if citation not in seen_citations:
-                                    seen_citations.add(citation)
-                                    citation_texts.append(citation)
+                        # Only format and append citations if the guardrail was not breached
+                        if not response.get("guardrail_breached", False):
+                            # 處理與格式化引用來源
+                            citation_texts = []
+                            seen_citations = set()
+                            for doc in response["context"]:
+                                source = doc.metadata.get("source", "Unknown")
+                                chapter_info = doc.metadata.get("chapter_info")
+                                if not chapter_info:
+                                    h1 = doc.metadata.get("Header 1")
+                                    h2 = doc.metadata.get("Header 2")
+                                    if h1 and h2:
+                                        chapter_info = f"{h1} > {h2}"
+                                    elif h1:
+                                        chapter_info = h1
+                                    else:
+                                        chapter_info = "Section details"
+                                    
+                                    citation = f"`{source}` ({chapter_info})"
+                                    if citation not in seen_citations:
+                                        seen_citations.add(citation)
+                                        citation_texts.append(citation)
 
-                        if citation_texts:
-                            answer += "\n\n**Sources:**\n" + "\n".join([f"- {c}" for c in citation_texts])
-                        
-                        decision_reason = st.session_state.get("last_routing_decision", "")
-                        agent_name = st.session_state.get("last_agent_name", "")
-                        if agent_name:
-                            answer += f"\n\n*(Routed via **{agent_name}** - Reason: {decision_reason})*"
+                            if citation_texts:
+                                answer += "\n\n**Sources:**\n" + "\n".join([f"- {c}" for c in citation_texts])
+                            
+                            decision_reason = st.session_state.get("last_routing_decision", "")
+                            agent_name = st.session_state.get("last_agent_name", "")
+                            if agent_name:
+                                answer += f"\n\n*(Routed via **{agent_name}** - Reason: {decision_reason})*"
                             
                         # 3. 轉圈圈結束，原地把答案 A2 渲染出來
                         st.markdown(answer)
                         
-                        with st.expander("🔍 View Raw Context"):
-                            for i, doc in enumerate(response["context"]):
-                                source = doc.metadata.get('source', 'Unknown')
-                                st.write(f"**Source {i+1}: {source}**")
-                                w_content = doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content
-                                st.write(w_content)
-                                st.divider()
+                        # Only show raw context expander if the guardrail was not breached
+                        if not response.get("guardrail_breached", False):
+                            with st.expander("🔍 View Raw Context"):
+                                for i, doc in enumerate(response["context"]):
+                                    source = doc.metadata.get('source', 'Unknown')
+                                    st.write(f"**Source {i+1}: {source}**")
+                                    w_content = doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content
+                                    st.write(w_content)
+                                    st.divider()
                                 
                         # 4. 【高光時刻】當這一輪完美落幕後，我們才把 Q2 和 A2 寫入 session_state
                         # 這樣一來，下一次你再輸入 Q3 時，這一輪就會自動被上面的 history_container 收納進歷史紀錄中
