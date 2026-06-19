@@ -5,9 +5,17 @@
 ![Ollama](https://img.shields.io/badge/Ollama-Llama_3-black)
 ![Streamlit](https://img.shields.io/badge/Streamlit-UI-red)
 
-LocalNotebookLM 是一個完全本地化、保護隱私的檢索增強生成 (RAG) 助理系統。它專為協助研究人員與學生深入閱讀與分析複雜的學術與技術論文而設計，提供高層級的大綱摘要與精細細節檢索。
+## 📌 關於專案 (About the Project)
 
-本系統針對 **Apple Silicon** 進行了本地最佳化，所有運算均在使用者本機執行，確保 100% 的資料隱私與極低延遲。
+### 🇹🇼 中文介紹
+**LocalNotebookLM** 是一個完全本地化、隱私安全無憂的學術與技術文檔閱讀助理。專為需要深入研讀複雜論文、規格書、教材的學生與研究人員設計。
+
+與市面上的玩具級 RAG 系統不同，本專案針對 **Apple Silicon** 晶片與本地硬體資源進行了深度的效能優化。從 PDF 解析、語意向量嵌入、雙路混合檢索、Cross-Encoder 深度重排序，到大模型的推理生成，所有運算均 **100% 在本機執行**，確保機密研究文件與個人數據絕對不外流。
+
+### 🇺🇸 English Version
+**LocalNotebookLM** is a fully localized, privacy-first AI research and document reading assistant. It is designed to help researchers, students, and professionals analyze complex academic papers, technical specifications, and study notes without relying on external cloud APIs.
+
+Unlike standard "toy" RAG systems, this project is highly optimized for local hardware (specifically tuned for **Apple Silicon**). The entire pipeline—including PDF parsing, embedding generation, dense-sparse hybrid search, Cross-Encoder reranking, agentic intent routing, and LLM inference—runs **100% locally on your machine**, ensuring complete data privacy, zero API costs, and zero cloud dependencies.
 
 ---
 
