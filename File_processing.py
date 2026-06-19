@@ -7,13 +7,13 @@ from langchain_huggingface import HuggingFaceEmbeddings
 import json
 
 # 1. Define the directory path
-# [span_2](start_span)[span_3](start_span)This allows the script to ingest the Handbook and any other MCS-related PDFs[span_2](end_span)[span_3](end_span)
+# This allows the script to ingest academic papers and other scientific PDFs
 data_dir = "./RAG_files/"
 
 if not os.path.exists(data_dir):
     print(f"⚠️ Directory not found: {data_dir}. Creating directory...")
     os.makedirs(data_dir)
-    print("📂 Please place your PDF files (like handbook.pdf) into the 'data' folder and run again.")
+    print("📂 Please place your academic paper PDF files (like YOLOv4 or other papers) into the 'RAG_files' folder and run again.")
 else:
     # 2. Use DirectoryLoader to traverse the entire folder
     pdf_paths = glob.glob(os.path.join(data_dir, "*.pdf"))

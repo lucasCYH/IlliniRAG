@@ -20,22 +20,22 @@ from langchain_community.llms import Ollama
 from langchain_core.prompts import ChatPromptTemplate
 from backend import db, retriever, router, config
 
-# Define Golden Q&A Dataset (Ground Truth)
+# Define Golden Q&A Dataset (Ground Truth based on YOLOv4 paper)
 GOLDEN_DATASET = [
     {
-        "question": "What is the global summary of the Graduate Student Handbook?",
-        "golden_answer": "The handbook provides an overview of key information, resources, and graduate degrees in the Grainger College of Engineering at the University of Illinois.",
+        "question": "What is the global summary and main contributions of the YOLOv4 paper?",
+        "golden_answer": "YOLOv4 is an object detector that offers state-of-the-art speed and accuracy. Its main contributions include introducing an efficient and powerful object detection model, verifying the impact of various 'Bag-of-Freebies' (BoF) and 'Bag-of-Specials' (BoS) features during training and detector enhancement, and modifying state-of-the-art methods like CBN, PAN, and SAM to make them more suitable for single-GPU training.",
         "expected_agent": "GlobalAgent"
     },
     {
-        "question": "Who is the director of graduate studies and what does the handbook provide?",
-        "golden_answer": "The handbook provides guidelines and information for graduate degrees. Specific directors or administrators can be found in the contact information section.",
-        "expected_agent": "GlobalAgent"
+        "question": "Explain the Mosaic data augmentation technique introduced in YOLOv4.",
+        "golden_answer": "Mosaic is a new data augmentation method that mixes four training images, allowing detection of objects outside their normal context. This technique significantly reduces the need for large mini-batch sizes during training, enabling effective training on a single GPU.",
+        "expected_agent": "NeedleAgent"
     },
     {
-        "question": "What is the purpose of the handbook for 2021-2022?",
-        "golden_answer": "It serves to outline policies, procedures, and resources for graduate students in Grainger Engineering during the 2021-2022 academic year.",
-        "expected_agent": "GlobalAgent"
+        "question": "What is the backbone model used in YOLOv4 and what activation function does it use?",
+        "golden_answer": "YOLOv4 uses the CSPDarknet53 backbone model, which is optimized for object detection, and employs the Mish activation function.",
+        "expected_agent": "NeedleAgent"
     }
 ]
 

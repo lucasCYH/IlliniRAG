@@ -9,7 +9,7 @@ These can be imported by other modules to keep settings centralized.
 ENABLE_SUMMARY_INDEX = True
 
 # Model name for summary generation (used with Ollama or OpenAI)
-SUMMARY_MODEL = "llama3.1"  # change to desired model name
+SUMMARY_MODEL = "llama3.2"  # change to desired model name
 
 SUMMARY_COLLECTION_CHAPTER = "doc_summary_chapter"
 SUMMARY_COLLECTION_SECTION = "doc_summary_section"

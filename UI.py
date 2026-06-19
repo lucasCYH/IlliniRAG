@@ -50,7 +50,15 @@ contextualize_q_prompt = ChatPromptTemplate.from_messages([
 history_aware_retriever = create_history_aware_retriever(llm, custom_retriever, contextualize_q_prompt)
 
 qa_prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are an expert AI assistant. Answer the question based ONLY on the provided context. IMPORTANT: You MUST answer in the exact same language as the user's input. If the user asks in Traditional Chinese (繁體中文), you must reply in Traditional Chinese. Do not make up answers. Context: {context}"),
+    ("system", (
+        "You are an expert AI assistant. Answer the question based ONLY on the provided context.\n\n"
+        "Instructions:\n"
+        "- Answer the user's question completely. If the question has multiple parts, address each part step-by-step.\n"
+        "- Do not skip any nuance, different experimental settings, or comparisons mentioned in the context (e.g. classification vs. detection settings).\n"
+        "- IMPORTANT: You MUST answer in the exact same language as the user's input. If the user asks in Traditional Chinese (繁體中文), you must reply in Traditional Chinese.\n"
+        "- Do not make up answers. If the information is not in the context, state that it is not available.\n\n"
+        "Context: {context}"
+    )),
     MessagesPlaceholder("chat_history"),
     ("human", "{input}"),
 ])
@@ -66,6 +74,49 @@ with st.sidebar:
 
     uploaded_file = st.file_uploader("Upload PDF Document", type=["pdf"], key=f"uploader_{st.session_state.uploader_key}")
     if uploaded_file:
+        # Fullscreen loading overlay to dim the screen and block all interactions
+        st.markdown("""
+            <div class="upload-overlay">
+                <div class="upload-loader"></div>
+                <div class="upload-text">📂 檔案導入中，請稍候... (請勿點擊或重新整理網頁)</div>
+            </div>
+            <style>
+            .upload-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100vw;
+                height: 100vh;
+                background-color: rgba(0, 0, 0, 0.7);
+                z-index: 999999;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                pointer-events: all;
+            }
+            .upload-loader {
+                border: 6px solid #444;
+                border-top: 6px solid #3498db;
+                border-radius: 50%;
+                width: 60px;
+                height: 60px;
+                animation: spin 1.2s linear infinite;
+                margin-bottom: 20px;
+            }
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+            .upload-text {
+                color: #ffffff;
+                font-size: 22px;
+                font-weight: 600;
+                font-family: sans-serif;
+            }
+            </style>
+        """, unsafe_allow_html=True)
+
         progress_bar = st.progress(0, text="Preparing file...")
         # Save temp file
         temp_path = f"/tmp/{uploaded_file.name}"

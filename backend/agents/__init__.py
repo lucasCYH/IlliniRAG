@@ -70,33 +70,44 @@ class EmbeddingClassifier:
         print("Loading SentenceTransformer model for router classification...")
         self.embeddings = HuggingFaceEmbeddings(model_name=config.GLOBAL_CLASSIFIER_MODEL)
         self.global_examples = [
-            "Summarize the entire document",
-            "What is the overall structure of this book",
-            "Give me a global summary of the chapters",
-            "What are the main topics discussed in this handbook",
-            "提供這份文件的章節大綱與摘要",
-            "整篇手冊的重點是什麼",
-            "這本書主要在講什麼",
+            # Academic/Tech global
+            "Summarize the entire paper",
+            "What is the overall structure of this paper",
+            "Give me a global summary of the sections",
+            "What are the main topics discussed in this paper",
+            "提供這篇論文的章節大綱與摘要",
+            "整篇論文的重點是什麼",
+            "這篇學術論文主要在講什麼",
             "請給我全域的概述",
-            "Who is this document for overall?",
-            "What is a summary of the chapters?",
-            "Can you write a study guide of this document?",
-            "說明這份手冊的整體架構",
-            "What is the handbook outline?"
+            "What is the main contribution of this research?",
+            "What is a summary of the methodology and results?",
+            "Can you write a study guide of this paper?",
+            "說明這份報告的整體架構與貢獻",
+            "What is the paper outline?",
+            "Summarize the YOLOv4 paper",
+            "提供這篇 YOLOv4 論文的整體大綱與摘要",
+            "What are the main contributions of YOLOv4?",
+            "這篇論文主要提出了哪些優化技術？"
         ]
         self.needle_examples = [
-            "What is the exact stipend for PhD students?",
-            "Where is the department office located?",
-            "Who is the director of graduate studies?",
-            "How many credit hours are required for graduation?",
-            "What are the prerequisite courses for CS 598?",
-            "如何申請差旅補助與相關規定",
-            "辦公室的電話號碼是多少",
-            "Fellowship的申請截止日期是哪天",
-            "How do I submit an thesis advisor request?",
-            "Tell me about the specific fellowships offered.",
-            "Who handles graduate admissions?",
-            "What is the email for academic advisor?"
+            # Academic/Tech needle
+            "What is the activation function used in YOLOv4?",
+            "Explain the Mosaic data augmentation technique in detail",
+            "What is the difference between DIoU and CIoU?",
+            "What backbone model does YOLOv4 use?",
+            "YOLOv4 中使用了哪種卷積神經網絡架構？",
+            "Explain the neck component of the detector",
+            "YOLOv4 中使用的數據增強技術 \"Mosaic\" 是如何運作的？",
+            "系統：根據YOLOv4的文獻，我們可以知道它使用了Swish激活函數。",
+            "What is the exact dataset used for evaluation?",
+            "What is the learning rate configuration during training?",
+            "Explain the loss function used in this research",
+            "What are the parameters for the experiments in section 4?",
+            "How many epochs was the model trained for?",
+            "這項研究使用了什麼資料集進行評估",
+            "論文中提到的實驗參數與學習率是多少",
+            "請詳細解釋第三章提到的演算法步驟",
+            "Table 2 中的數據代表什麼意義"
         ]
         
         # Pre-compute centroids

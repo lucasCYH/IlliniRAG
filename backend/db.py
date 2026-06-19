@@ -226,12 +226,24 @@ def search_parent_chunks_fts(query_str: str, limit: int = 5) -> list:
     import re
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # Format query for FTS5 (remove non-alphanumeric characters to avoid query syntax errors)
-    clean_query = re.sub(r'[^\w\s]', ' ', query_str).strip()
     
-    # We split query terms and search for them matching, or simple matching.
-    # If the search query contains quotes or operators, FTS5 MATCH might throw.
-    # So we wrap in double quotes or fallback to LIKE if FTS query syntax is invalid.
+    # Remove non-alphanumeric and split into lowercase tokens
+    tokens = re.sub(r'[^\w\s]', ' ', query_str).lower().split()
+    
+    # Filter out common English/Chinese stop words
+    stop_words = {
+        'what', 'is', 'the', 'in', 'of', 'and', 'a', 'to', 'for', 'on', 'with', 'at', 
+        'by', 'from', 'an', 'as', 'are', 'it', 'this', 'that', 'who', 'how', 'where', 'which',
+        '的', '了', '和', '是', '就', '都', '而', '及', '與', '著', '或', '之', '在'
+    }
+    keywords = [t for t in tokens if t not in stop_words and len(t) > 1]
+    
+    if not keywords:
+        keywords = tokens if tokens else [""]
+        
+    # Join with OR operator for FTS5 so it acts as a soft BM25 match
+    fts_query = " OR ".join(keywords)
+    
     try:
         cursor.execute("""
             SELECT pc.parent_id, pc.page_content, pc.metadata_json, bm25(parent_chunks_fts) as rank
@@ -240,16 +252,16 @@ def search_parent_chunks_fts(query_str: str, limit: int = 5) -> list:
             WHERE parent_chunks_fts MATCH ?
             ORDER BY rank
             LIMIT ?
-        """, (clean_query, limit))
+        """, (fts_query, limit))
         rows = cursor.fetchall()
     except sqlite3.OperationalError as e:
-        print(f"[FTS5 Search] Query syntax failed for '{clean_query}': {e}. Falling back to LIKE.")
+        print(f"[FTS5 Search] Query syntax failed for '{fts_query}': {e}. Falling back to LIKE.")
         cursor.execute("""
             SELECT parent_id, page_content, metadata_json, 1.0 as rank
             FROM parent_chunks
             WHERE page_content LIKE ?
             LIMIT ?
-        """, (f"%{clean_query}%", limit))
+        """, (f"%{query_str}%", limit))
         rows = cursor.fetchall()
         
     conn.close()

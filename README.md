@@ -5,7 +5,7 @@
 ![Ollama](https://img.shields.io/badge/Ollama-Llama_3-black)
 ![Streamlit](https://img.shields.io/badge/Streamlit-UI-red)
 
-IlliniRAG 是一個完全本地化、保護隱私的檢索增強生成 (RAG) 助理系統。它專為協助學生與研究人員閱讀複雜的學術論文、課程註冊政策和學術手冊而設計，提供高層級的大綱摘要與精細細節檢索。
+IlliniRAG 是一個完全本地化、保護隱私的檢索增強生成 (RAG) 助理系統。它專為協助研究人員與學生深入閱讀與分析複雜的學術與技術論文而設計，提供高層級的大綱摘要與精細細節檢索。
 
 本系統針對 **Apple Silicon** 進行了本地最佳化，所有運算均在使用者本機執行，確保 100% 的資料隱私與極低延遲。
 

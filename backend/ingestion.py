@@ -75,6 +75,7 @@ def ingest_document(file_path, progress_callback=None):
     for p_idx, p_doc in enumerate(parent_docs):
         parent_id = f"doc_{doc_id}_parent_{p_idx}"
         p_doc.metadata["parent_id"] = parent_id
+        p_doc.metadata["source"] = filename
         
         # Save to SQLite
         db.add_parent_chunk(doc_id, parent_id, p_doc.page_content, p_doc.metadata)
@@ -125,24 +126,8 @@ def ingest_document(file_path, progress_callback=None):
     print("Ingestion complete!")
     return len(parent_docs), len(child_chunks)
 
-def migrate_existing():
-    """Migrate the existing parent_store.json to the new DB if needed"""
-    import json
-    if os.path.exists("parent_store.json"):
-        print("Migrating parent_store.json to SQLite...")
-        with open("parent_store.json", "r", encoding="utf-8") as f:
-            store = json.load(f)
-            
-        doc_id = db.add_document("handbook_migrated.pdf")
-        for parent_id, data in store.items():
-            db.add_parent_chunk(doc_id, parent_id, data["page_content"], data["metadata"])
-        
-        os.rename("parent_store.json", "parent_store.json.bak")
-        print("Migration complete.")
-
 if __name__ == "__main__":
     # If run directly, ingest any PDFs in RAG_files
-    migrate_existing()
     data_dir = "./RAG_files/"
     if os.path.exists(data_dir):
         pdf_paths = glob.glob(os.path.join(data_dir, "*.pdf"))
