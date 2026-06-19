@@ -1,6 +1,6 @@
-# IlliniRAG 部署指南 & 資料隱私策略
+# LocalNotebookLM 部署指南 & 資料隱私策略
 
-本文件說明如何將 IlliniRAG 部署至遠端伺服器 (如 Fly.io) 或進行本地 Docker 部署，同時保證資料庫與向量庫的隱私安全。
+本文件說明如何將 LocalNotebookLM 部署至遠端伺服器 (如 Fly.io) 或進行本地 Docker 部署，同時保證資料庫與向量庫的隱私安全。
 
 ---
 
@@ -23,20 +23,20 @@
 ### 1. 構建映像檔
 在專案根目錄下運行：
 ```bash
-docker build -t illinirag:latest .
+docker build -t localnotebooklm:latest .
 ```
 
 ### 2. 啟動容器 (掛載本地目錄)
-將本機目錄 `~/illinirag_data` 掛載到容器的 `/app/data` 目錄中，並以環境變數指定路徑：
+將本機目錄 `~/localnotebooklm_data` 掛載到容器的 `/app/data` 目錄中，並以環境變數指定路徑：
 ```bash
-mkdir -p ~/illinirag_data
+mkdir -p ~/localnotebooklm_data
 docker run -d \
   -p 8501:8501 \
-  -v ~/illinirag_data:/app/data \
+  -v ~/localnotebooklm_data:/app/data \
   -e DB_PATH=/app/data/notebook_store.db \
   -e CHROMA_PERSIST_DIR=/app/data/chroma_db \
-  --name illinirag-app \
-  illinirag:latest
+  --name localnotebooklm-app \
+  localnotebooklm:latest
 ```
 打開瀏覽器訪問 `http://localhost:8501` 即可使用。
 
@@ -57,12 +57,12 @@ fly auth login
 ```bash
 fly launch --no-deploy
 ```
-這將建立 `fly.toml` 組態檔。在過程中，請為應用程式命名 (例如 `illinirag-assistant`)。
+這將建立 `fly.toml` 組態檔。在過程中，請為應用程式命名 (例如 `localnotebooklm-assistant`)。
 
 ### 3. 建立並掛載免費的 Volume (3GB 內免費)
-在您的應用程式所在的地區建立一個名為 `illinirag_data` 的 Volume (以 `hkg` 香港或 `nrt` 東京為例)：
+在您的應用程式所在的地區建立一個名為 `localnotebooklm_data` 的 Volume (以 `hkg` 香港或 `nrt` 東京為例)：
 ```bash
-fly volumes create illinirag_data --size 1 --region hkg
+fly volumes create localnotebooklm_data --size 1 --region hkg
 ```
 
 ### 4. 設定 `fly.toml` 檔案
@@ -75,7 +75,7 @@ fly volumes create illinirag_data --size 1 --region hkg
   PORT = "8501"
 
 [mounts]
-  source = "illinirag_data"
+  source = "localnotebooklm_data"
   destination = "/app/data"
 ```
 

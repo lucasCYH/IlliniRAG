@@ -47,7 +47,29 @@ contextualize_q_prompt = ChatPromptTemplate.from_messages([
     ("human", "{input}"),
 ])
 
-history_aware_retriever = create_history_aware_retriever(llm, custom_retriever, contextualize_q_prompt)
+# --- Context Compression Gate ---
+@st.cache_resource(show_spinner=False)
+def get_llmlingua_compressor():
+    from backend.compression import LLMLinguaDocumentCompressor
+    return LLMLinguaDocumentCompressor(rate=0.5)
+
+use_compression = st.sidebar.checkbox(
+    "⚡ Context Compression (LLMLingua)",
+    value=False,
+    help="Reduces prompt tokens by 30-50% using LLMLingua to optimize inference speed and save memory."
+)
+
+if use_compression:
+    compressor = get_llmlingua_compressor()
+    from langchain.retrievers import ContextualCompressionRetriever
+    retriever_for_chain = ContextualCompressionRetriever(
+        base_compressor=compressor,
+        base_retriever=custom_retriever
+    )
+else:
+    retriever_for_chain = custom_retriever
+
+history_aware_retriever = create_history_aware_retriever(llm, retriever_for_chain, contextualize_q_prompt)
 
 qa_prompt = ChatPromptTemplate.from_messages([
     ("system", (
@@ -129,6 +151,20 @@ with st.sidebar:
         # Ingest with progress callback
         enable_summary = st.session_state.get("enable_summary_index", True)
         ingestion.ingest_document(temp_path, progress_callback=update_progress, enable_summary=enable_summary)
+        
+        # Run multimodal parser if enabled
+        enable_multimodal = st.session_state.get("enable_multimodal_parsing", False)
+        if enable_multimodal:
+            update_progress(95, "Running Multimodal VLM Parsing for Tables & Figures...")
+            file_md5 = ingestion.get_file_md5(temp_path)
+            doc_info = db.get_document_by_md5(file_md5)
+            if doc_info:
+                try:
+                    from backend import multimodal_parser
+                    multimodal_parser.run_pipeline(temp_path, doc_info["id"], model_name="qwen2-vl")
+                except Exception as ex:
+                    st.warning(f"Multimodal VLM parsing failed: {ex}")
+                    
         st.success(f"Successfully ingested {uploaded_file.name}")
         # Reset uploader and reload retriever
         st.session_state.uploader_key += 1
@@ -141,6 +177,7 @@ with st.sidebar:
     st.subheader("⚙️ Settings")
     st.toggle("全域摘要模式 (Global Mode)", key="global_mode", value=False, help="開啟後將強制使用全域大綱/摘要檢索模式；關閉時則依問題自動進行語意路由。")
     st.toggle("啟用文件摘要索引 (Generate Summaries)", key="enable_summary_index", value=True, help="開啟後將在導入時自動生成章節與段落摘要以支援全域大綱檢索；關閉可大幅加快上傳速度。")
+    st.toggle("啟用多模態表格/圖表解析 (Multimodal Parsing)", key="enable_multimodal_parsing", value=False, help="開啟後將在導入時使用本地端 Qwen2-VL 視覺語言模型解析 PDF 中的表格與圖表並寫入索引。")
 
     st.divider()
     st.subheader("Uploaded Documents")

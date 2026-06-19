@@ -1,6 +1,6 @@
 # backend/config.py
 
-"""Configuration constants for IlliniRAG project.
+"""Configuration constants for LocalNotebookLM project.
 
 These can be imported by other modules to keep settings centralized.
 """

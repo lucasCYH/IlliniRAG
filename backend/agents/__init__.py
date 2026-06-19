@@ -1,6 +1,6 @@
 # backend/agents/__init__.py
 
-"""Agent framework for IlliniRAG.
+"""Agent framework for LocalNotebookLM.
 
 Defines BaseAgent, GlobalAgent, NeedleAgent, and AgentRouter to orchestrate
 routing of queries between global-level summaries and fine-grained chunks.

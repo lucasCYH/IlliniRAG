@@ -1,0 +1,152 @@
+question,contexts,ground_truth,evolution,source,contexts_str
+What happens to the detector accuracy when pre-trained weightings (BoF and Mish) are applied for the CSPResNeXt50 classifier training?,"['## **4.4. Influence of different backbones and pre-**\n**trained weightings on Detector training**  \nFurther on we study the influence of different backbone\nmodels on the detector accuracy, as shown in Table 6. We\nnotice that the model characterized with the best classification accuracy is not always the best in terms of the detector  \naccuracy.  \nFirst, although classification accuracy of CSPResNeXt50 models trained with different features is higher compared\nto CSPDarknet53 models, the CSPDarknet53 model shows\nhigher accuracy in terms of object detection.  \nSecond, using BoF and Mish for the CSPResNeXt50\nclassifier training increases its classification accuracy, but\nfurther application of these pre-trained weightings for detector training reduces the detector accuracy. However, using BoF and Mish for the CSPDarknet53 classifier training\nincreases the accuracy of both the classifier and the detector\nwhich uses this classifier pre-trained weightings. The net\nresult is that backbone CSPDarknet53 is more suitable for  \nthe detector than for CSPResNeXt50.  \nWe observe that the CSPDarknet53 model demonstrates  \na greater ability to increase the detector accuracy owing to\nvarious improvements.  \nTable 6: Using different classifier pre-trained weightings for detector training (all other training parameters are similar in all models) .  \n**Model (with optimal setting)** **Size** **AP** **AP** 50 **AP** 75  \n**CSPResNeXt50-PANet-SPP** 512x512 42.4 64.4 45.9  \n**CSPResNeXt50-PANet-SPP**\n512x512 42.3 64.3 45.7\n(BoF-backbone)  \n**CSPResNeXt50-PANet-SPP**\n512x512 42.3 64.2 45.8\n(BoF-backbone + Mish)  \n**CSPDarknet53-PANet-SPP**\n512x512 42.4 64.5 46.0\n(BoF-backbone)  \n**CSPDarknet53-PANet-SPP**\n512x512 43.0 64.9 46.5\n(BoF-backbone + Mish)']","The application of BoF and Mish for the CSPResNeXt50 classifier training increases its classification accuracy, but further application of these pre-trained weightings for detector training reduces the detector accuracy.
+
+CONTEXT BLOCK:
+""...Second, using BoF and Mish for the CSPResNeXt50
+classifier training increases its classification accuracy, but
+further application of these pre-trained weightings for detector training reduces the detector accuracy...""",simple,PDF Document,"## **4.4. Influence of different backbones and pre-**
+**trained weightings on Detector training**  
+Further on we study the influence of different backbone
+models on the detector accuracy, as shown in Table 6. We
+notice that the model characterized with the best classification accuracy is not always the best in terms of the detector  
+accuracy.  
+First, although classification accuracy of CSPResNeXt50 models trained with different features is higher compared
+to CSPDarknet53 models, the CSPDarknet53 model shows
+higher accuracy in terms of object detection.  
+Second, using BoF and Mish for the CSPResNeXt50
+classifier training increases its classification accuracy, but
+further application of these pre-trained weightings for detector training reduces the detector accuracy. However, using BoF and Mish for the CSPDarknet53 classifier training
+increases the accuracy of both the classifier and the detector
+which uses this classifier pre-trained weightings. The net
+result is that backbone CSPDarknet53 is more suitable for  
+the detector than for CSPResNeXt50.  
+We observe that the CSPDarknet53 model demonstrates  
+a greater ability to increase the detector accuracy owing to
+various improvements.  
+Table 6: Using different classifier pre-trained weightings for detector training (all other training parameters are similar in all models) .  
+**Model (with optimal setting)** **Size** **AP** **AP** 50 **AP** 75  
+**CSPResNeXt50-PANet-SPP** 512x512 42.4 64.4 45.9  
+**CSPResNeXt50-PANet-SPP**
+512x512 42.3 64.3 45.7
+(BoF-backbone)  
+**CSPResNeXt50-PANet-SPP**
+512x512 42.3 64.2 45.8
+(BoF-backbone + Mish)  
+**CSPDarknet53-PANet-SPP**
+512x512 42.4 64.5 46.0
+(BoF-backbone)  
+**CSPDarknet53-PANet-SPP**
+512x512 43.0 64.9 46.5
+(BoF-backbone + Mish)"
+What are the components that make up YOLOv4's backbone?,"['## **3.4. YOLOv4**  \nIn this section, we shall elaborate the details of YOLOv4.  \n**YOLOv4 consists of** :  \n_•_ Backbone: CSPDarknet53 [81]  \n_•_ Neck: SPP [25], PAN [49]  \n_•_ Head: YOLOv3 [63]  \n**YOLO v4 uses** :  \n_•_ Bag of Freebies (BoF) for backbone: CutMix and\nMosaic data augmentation, DropBlock regularization,\nClass label smoothing  \n_•_ Bag of Specials (BoS) for backbone: Mish activation, Cross-stage partial connections (CSP), Multiinput weighted residual connections (MiWRC)  \n_•_ Bag of Freebies (BoF) for detector: CIoU-loss,\nCmBN, DropBlock regularization, Mosaic data augmentation, Self-Adversarial Training, Eliminate grid\nsensitivity, Using multiple anchors for a single ground\ntruth, Cosine annealing scheduler [52], Optimal hyperparameters, Random training shapes  \n_•_ Bag of Specials (BoS) for detector: Mish activation,\nSPP-block, SAM-block, PAN path-aggregation block,\nDIoU-NMS']","The components of YOLOv4's backbone include CSPDarknet53 as the backbone, SPP (Spatial Pyramid Pooling) and PAN (Pyramid Attention Network) as the neck, and uses Bag of Specials (BoS) which includes Mish activation, Cross-stage partial connections (CSP), and Multiinput weighted residual connections (MiWRC).
+
+CONTEXT block:
+**YOLOv4 consists of**:  
+_•_ Backbone: CSPDarknet53 [81]  
+_•_ Neck: SPP [25], PAN [49]",simple,PDF Document,"## **3.4. YOLOv4**  
+In this section, we shall elaborate the details of YOLOv4.  
+**YOLOv4 consists of** :  
+_•_ Backbone: CSPDarknet53 [81]  
+_•_ Neck: SPP [25], PAN [49]  
+_•_ Head: YOLOv3 [63]  
+**YOLO v4 uses** :  
+_•_ Bag of Freebies (BoF) for backbone: CutMix and
+Mosaic data augmentation, DropBlock regularization,
+Class label smoothing  
+_•_ Bag of Specials (BoS) for backbone: Mish activation, Cross-stage partial connections (CSP), Multiinput weighted residual connections (MiWRC)  
+_•_ Bag of Freebies (BoF) for detector: CIoU-loss,
+CmBN, DropBlock regularization, Mosaic data augmentation, Self-Adversarial Training, Eliminate grid
+sensitivity, Using multiple anchors for a single ground
+truth, Cosine annealing scheduler [52], Optimal hyperparameters, Random training shapes  
+_•_ Bag of Specials (BoS) for detector: Mish activation,
+SPP-block, SAM-block, PAN path-aggregation block,
+DIoU-NMS"
+"Why does the author consider the SPP module's improved version in YOLOv3-608 as a significant enhancement, despite its relatively small increase in computation cost?","['## **2.3. Bag of specials**  \nFor those plugin modules and post-processing methods\nthat only increase the inference cost by a small amount\nbut can significantly improve the accuracy of object detection, we call them “bag of specials”. Generally speaking,\nthese plugin modules are for enhancing certain attributes in\na model, such as enlarging receptive field, introducing attention mechanism, or strengthening feature integration capability, etc., and post-processing is a method for screening\nmodel prediction results.\nCommon modules that can be used to enhance receptive field are SPP [25], ASPP [5], and RFB [47]. The\nSPP module was originated from Spatial Pyramid Matching (SPM) [39], and SPMs original method was to split feature map into several _d × d_ equal blocks, where _d_ can be\n_{_ 1 _,_ 2 _,_ 3 _, ...}_, thus forming spatial pyramid, and then extracting bag-of-word features. SPP integrates SPM into CNN\nand use max-pooling operation instead of bag-of-word operation. Since the SPP module proposed by He _et al_ . [25]\nwill output one dimensional feature vector, it is infeasible to\nbe applied in Fully Convolutional Network (FCN). Thus in\nthe design of YOLOv3 [63], Redmon and Farhadi improve\nSPP module to the concatenation of max-pooling outputs\nwith kernel size _k × k_, where _k_ = _{_ 1 _,_ 5 _,_ 9 _,_ 13 _}_, and stride\nequals to 1. Under this design, a relatively large _k × k_ maxpooling effectively increase the receptive field of backbone\nfeature. After adding the improved version of SPP module,\nYOLOv3-608 upgrades AP 50 by 2.7% on the MS COCO\nobject detection task at the cost of 0.5% extra computation.\nThe difference in operation between ASPP [5] module and\nimproved SPP module is mainly from the original _k_ _×k_ kernel size, max-pooling of stride equals to 1 to several 3 _×_ 3\nkernel size, dilated ratio equals to _k_, and stride equals to 1\nin dilated convolution operation. RFB module is to use several dilated convolutions of _k_ _×k_ kernel, dilated ratio equals\nto _k_, and stride equals to 1 to obtain a more comprehensive\nspatial coverage than ASPP. RFB [47] only costs 7% extra\ninference time to increase the AP 50 of SSD on MS COCO\nby 5.7%.\nThe attention module that is often used in object detection is mainly divided into channel-wise attention and pointwise attention, and the representatives of these two attention models are Squeeze-and-Excitation (SE) [29] and Spatial Attention Module (SAM) [85], respectively. Although\nSE module can improve the power of ResNet50 in the ImageNet image classification task 1% top-1 accuracy at the\ncost of only increasing the computational effort by 2%, but\non a GPU usually it will increase the inference time by\nabout 10%, so it is more appropriate to be used in mobile\ndevices. But for SAM, it only needs to pay 0.1% extra calculation and it can improve ResNet50-SE 0.5% top-1 accuracy on the ImageNet image classification task. Best of all,\nit does not affect the speed of inference on the GPU at all.  \nIn terms of feature integration, the early practice is to use\nskip connection [51] or hyper-column [22] to integrate lowlevel physical feature to high-level semantic feature. Since\nmulti-scale prediction methods such as FPN have become\npopular, many lightweight modules that integrate different\nfeature pyramid have been proposed. The modules of this\nsort include SFAM [98], ASFF [48], and BiFPN [77]. The  \nmain idea of SFAM is to use SE module to execute channel\nwise level re-weighting on multi-scale concatenated feature\nmaps. As for ASFF, it uses softmax as point-wise level reweighting and then adds feature maps of different scales.\nIn BiFPN, the multi-input weighted residual connections is\nproposed to execute scale-wise level re-weighting, and then\nadd feature maps of different scales.  \nIn the research of deep learning, some people put their\nfocus on searching for good activation function. A good\nactivation function can make the gradient more efficiently\npropagated, and at the same time it will not cause too\nmuch extra computational cost. In 2010, Nair and Hinton [56] propose ReLU to substantially solve the gradient\nvanish problem which is frequently encountered in traditional tanh and sigmoid activation function. Subsequently,\nLReLU [54], PReLU [24], ReLU6 [28], Scaled Exponential\nLinear Unit (SELU) [35], Swish [59], hard-Swish [27], and\nMish [55], etc., which are also used to solve the gradient\nvanish problem, have been proposed. The main purpose of\nLReLU and PReLU is to solve the problem that the gradient of ReLU is zero when the output is less than zero. As\nfor ReLU6 and hard-Swish, they are specially designed for\nquantization networks. For self-normalizing a neural network, the SELU activation function is proposed to satisfy\nthe goal. One thing to be noted is that both Swish and Mish\nare continuously differentiable activation function.  \nThe post-processing method commonly used in deeplearning-based object detection is NMS, which can be used\nto filter those BBoxes that badly predict the same object, and only retain the candidate BBoxes with higher response. The way NMS tries to improve is consistent with\nthe method of optimizing an objective function. The original method proposed by NMS does not consider the context information, so Girshick _et al_ . [19] added classification\nconfidence score in R-CNN as a reference, and according to\nthe order of confidence score, greedy NMS was performed\nin the order of high score to low score. As for soft NMS [1],\nit considers the problem that the occlusion of an object may\ncause the degradation of confidence score in greedy NMS\nwith IoU score. The DIoU NMS [99] developers way of\nthinking is to add the information of the center point distance to the BBox screening process on the basis of soft\nNMS. It is worth mentioning that, since none of above postprocessing methods directly refer to the captured image features, post-processing is no longer required in the subsequent development of an anchor-free method.  \n4  \nTable 1: Parameters of neural networks for image classification.  \nAverage size\nInput network Receptive\nBackbone model Parameters of layer output\nresolution field size\n(WxHxC)  \nBFLOPs FPS  \n(512x512 network resolution) (GPU RTX 2070)  \nCSPResNext50 512x512 425x425 20.6 M **1058 K** 31 (15.5 FMA) 62\nCSPDarknet53 512x512 725x725 **27.6 M** 950 K 52 (26.0 FMA) **66**\nEfficientNet-B3 (ours) 512x512 **1311x1311** 12.0 M 668 K 11 (5.5 FMA) 26']","The author considers the SPP module's improved version in YOLOv3-608 as a significant enhancement because it effectively increases the receptive field of the backbone feature, which is crucial for object detection tasks. The improved version of SPP module, which concatenates max-pooling outputs with kernel size k × k, where k = {1, 5, 9, 13}, and stride equals to 1, allows for a relatively large k × k max-pooling operation that increases the receptive field of the backbone feature. This is evident from the text: ""Under this design, a relatively large k × k max-pooling effectively increase the receptive field of backbone feature."" Additionally, the author highlights the significant improvement in AP 50 on the MS COCO object detection task (2.7%) at the cost of only 0.5% extra computation.
+
+CONTEXT BLOCK:
+
+""...The SPP module was originated from Spatial Pyramid Matching (SPM) [39], and SPMs original method was to split feature map into several d × d equal blocks, where d can be _{1 _,} _{2 _,} _{3 _, ...} , thus forming spatial pyramid, and then extracting bag-of-word features. SPP integrates SPM into CNN and use max-pooling operation instead of bag-of-word operation. Since the SPP module proposed by He et al . [25] will output one dimensional feature vector, it is infeasible to be applied in Fully Convolutional Network (FCN). Thus in the design of YOLOv3 [63], Redmon and Farhadi improve SPP module to the concatenation of max-pooling outputs with kernel size k × k, where k = {1, 5, 9, 13}, and stride equals to 1. Under this design, a relatively large k × k max-pooling effectively increase the receptive field of backbone feature..."".",reasoning,PDF Document,"## **2.3. Bag of specials**  
+For those plugin modules and post-processing methods
+that only increase the inference cost by a small amount
+but can significantly improve the accuracy of object detection, we call them “bag of specials”. Generally speaking,
+these plugin modules are for enhancing certain attributes in
+a model, such as enlarging receptive field, introducing attention mechanism, or strengthening feature integration capability, etc., and post-processing is a method for screening
+model prediction results.
+Common modules that can be used to enhance receptive field are SPP [25], ASPP [5], and RFB [47]. The
+SPP module was originated from Spatial Pyramid Matching (SPM) [39], and SPMs original method was to split feature map into several _d × d_ equal blocks, where _d_ can be
+_{_ 1 _,_ 2 _,_ 3 _, ...}_, thus forming spatial pyramid, and then extracting bag-of-word features. SPP integrates SPM into CNN
+and use max-pooling operation instead of bag-of-word operation. Since the SPP module proposed by He _et al_ . [25]
+will output one dimensional feature vector, it is infeasible to
+be applied in Fully Convolutional Network (FCN). Thus in
+the design of YOLOv3 [63], Redmon and Farhadi improve
+SPP module to the concatenation of max-pooling outputs
+with kernel size _k × k_, where _k_ = _{_ 1 _,_ 5 _,_ 9 _,_ 13 _}_, and stride
+equals to 1. Under this design, a relatively large _k × k_ maxpooling effectively increase the receptive field of backbone
+feature. After adding the improved version of SPP module,
+YOLOv3-608 upgrades AP 50 by 2.7% on the MS COCO
+object detection task at the cost of 0.5% extra computation.
+The difference in operation between ASPP [5] module and
+improved SPP module is mainly from the original _k_ _×k_ kernel size, max-pooling of stride equals to 1 to several 3 _×_ 3
+kernel size, dilated ratio equals to _k_, and stride equals to 1
+in dilated convolution operation. RFB module is to use several dilated convolutions of _k_ _×k_ kernel, dilated ratio equals
+to _k_, and stride equals to 1 to obtain a more comprehensive
+spatial coverage than ASPP. RFB [47] only costs 7% extra
+inference time to increase the AP 50 of SSD on MS COCO
+by 5.7%.
+The attention module that is often used in object detection is mainly divided into channel-wise attention and pointwise attention, and the representatives of these two attention models are Squeeze-and-Excitation (SE) [29] and Spatial Attention Module (SAM) [85], respectively. Although
+SE module can improve the power of ResNet50 in the ImageNet image classification task 1% top-1 accuracy at the
+cost of only increasing the computational effort by 2%, but
+on a GPU usually it will increase the inference time by
+about 10%, so it is more appropriate to be used in mobile
+devices. But for SAM, it only needs to pay 0.1% extra calculation and it can improve ResNet50-SE 0.5% top-1 accuracy on the ImageNet image classification task. Best of all,
+it does not affect the speed of inference on the GPU at all.  
+In terms of feature integration, the early practice is to use
+skip connection [51] or hyper-column [22] to integrate lowlevel physical feature to high-level semantic feature. Since
+multi-scale prediction methods such as FPN have become
+popular, many lightweight modules that integrate different
+feature pyramid have been proposed. The modules of this
+sort include SFAM [98], ASFF [48], and BiFPN [77]. The  
+main idea of SFAM is to use SE module to execute channel
+wise level re-weighting on multi-scale concatenated feature
+maps. As for ASFF, it uses softmax as point-wise level reweighting and then adds feature maps of different scales.
+In BiFPN, the multi-input weighted residual connections is
+proposed to execute scale-wise level re-weighting, and then
+add feature maps of different scales.  
+In the research of deep learning, some people put their
+focus on searching for good activation function. A good
+activation function can make the gradient more efficiently
+propagated, and at the same time it will not cause too
+much extra computational cost. In 2010, Nair and Hinton [56] propose ReLU to substantially solve the gradient
+vanish problem which is frequently encountered in traditional tanh and sigmoid activation function. Subsequently,
+LReLU [54], PReLU [24], ReLU6 [28], Scaled Exponential
+Linear Unit (SELU) [35], Swish [59], hard-Swish [27], and
+Mish [55], etc., which are also used to solve the gradient
+vanish problem, have been proposed. The main purpose of
+LReLU and PReLU is to solve the problem that the gradient of ReLU is zero when the output is less than zero. As
+for ReLU6 and hard-Swish, they are specially designed for
+quantization networks. For self-normalizing a neural network, the SELU activation function is proposed to satisfy
+the goal. One thing to be noted is that both Swish and Mish
+are continuously differentiable activation function.  
+The post-processing method commonly used in deeplearning-based object detection is NMS, which can be used
+to filter those BBoxes that badly predict the same object, and only retain the candidate BBoxes with higher response. The way NMS tries to improve is consistent with
+the method of optimizing an objective function. The original method proposed by NMS does not consider the context information, so Girshick _et al_ . [19] added classification
+confidence score in R-CNN as a reference, and according to
+the order of confidence score, greedy NMS was performed
+in the order of high score to low score. As for soft NMS [1],
+it considers the problem that the occlusion of an object may
+cause the degradation of confidence score in greedy NMS
+with IoU score. The DIoU NMS [99] developers way of
+thinking is to add the information of the center point distance to the BBox screening process on the basis of soft
+NMS. It is worth mentioning that, since none of above postprocessing methods directly refer to the captured image features, post-processing is no longer required in the subsequent development of an anchor-free method.  
+4  
+Table 1: Parameters of neural networks for image classification.  
+Average size
+Input network Receptive
+Backbone model Parameters of layer output
+resolution field size
+(WxHxC)  
+BFLOPs FPS  
+(512x512 network resolution) (GPU RTX 2070)  
+CSPResNext50 512x512 425x425 20.6 M **1058 K** 31 (15.5 FMA) 62
+CSPDarknet53 512x512 725x725 **27.6 M** 950 K 52 (26.0 FMA) **66**
+EfficientNet-B3 (ours) 512x512 **1311x1311** 12.0 M 668 K 11 (5.5 FMA) 26"
