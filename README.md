@@ -1,21 +1,16 @@
 # 🎓 LocalNotebookLM: Privacy-First Local AI Assistant
 
+🌐 **[繁體中文](README.md) | [English](#-localnotebooklm-privacy-first-local-ai-assistant-english)**
+
+
 ![Python](https://img.shields.io/badge/Python-3.9+-blue)
 ![LangChain](https://img.shields.io/badge/LangChain-0.3.x-green)
 ![Ollama](https://img.shields.io/badge/Ollama-Llama_3-black)
 ![Streamlit](https://img.shields.io/badge/Streamlit-UI-red)
 
-## 📌 關於專案 (About the Project)
+LocalNotebookLM 是一個完全本地化、保護隱私的檢索增強生成 (RAG) 助理系統。它專為協助研究人員與學生深入閱讀與分析複雜的學術與技術論文而設計，提供高層級的大綱摘要與精細細節檢索。
 
-### 🇹🇼 中文介紹
-**LocalNotebookLM** 是一個完全本地化、隱私安全無憂的學術與技術文檔閱讀助理。專為需要深入研讀複雜論文、規格書、教材的學生與研究人員設計。
-
-與市面上的玩具級 RAG 系統不同，本專案針對 **Apple Silicon** 晶片與本地硬體資源進行了深度的效能優化。從 PDF 解析、語意向量嵌入、雙路混合檢索、Cross-Encoder 深度重排序，到大模型的推理生成，所有運算均 **100% 在本機執行**，確保機密研究文件與個人數據絕對不外流。
-
-### 🇺🇸 English Version
-**LocalNotebookLM** is a fully localized, privacy-first AI research and document reading assistant. It is designed to help researchers, students, and professionals analyze complex academic papers, technical specifications, and study notes without relying on external cloud APIs.
-
-Unlike standard "toy" RAG systems, this project is highly optimized for local hardware (specifically tuned for **Apple Silicon**). The entire pipeline—including PDF parsing, embedding generation, dense-sparse hybrid search, Cross-Encoder reranking, agentic intent routing, and LLM inference—runs **100% locally on your machine**, ensuring complete data privacy, zero API costs, and zero cloud dependencies.
+本系統針對 **Apple Silicon** 進行了本地最佳化，所有運算均在使用者本機執行，確保 100% 的資料隱私與極低延遲。
 
 ---
 
@@ -199,5 +194,144 @@ PYTHONPATH=. python tests/evaluate_rag.py
 本專案定義了四個階段的研發路線圖，包含 SQLite 歷史記憶持久化、個人筆記語意增量同步、混合部署架構、以及多模態圖表與 Setfit 意圖分類器微調的避坑指南。
 
 詳細規劃請參閱：**[roadmap.md](file:///Users/ut/.gemini/antigravity/brain/e4d4dd50-6a44-40f7-a18f-77fe15f736b7/roadmap.md)**。
+
+---
+
+# 🎓 LocalNotebookLM: Privacy-First Local AI Assistant (English)
+
+![Python](https://img.shields.io/badge/Python-3.9+-blue)
+![LangChain](https://img.shields.io/badge/LangChain-0.3.x-green)
+![Ollama](https://img.shields.io/badge/Ollama-Llama_3-black)
+![Streamlit](https://img.shields.io/badge/Streamlit-UI-red)
+
+LocalNotebookLM is a completely localized, privacy-first Retrieval-Augmented Generation (RAG) assistant system. It is designed to assist researchers and students in deep reading and analyzing complex academic and technical papers, providing high-level outline summaries and fine-grained detail retrieval.
+
+This system is optimized locally for **Apple Silicon**, with all computations running on the user's local machine to ensure 100% data privacy and low latency.
+
+---
+
+## 🌟 Production-Grade RAG Optimizations (R&D-Grade Highlights)
+
+Unlike generic "Toy RAG" setups, this project is fully aligned with industry production-grade RAG core optimization metrics:
+
+1. **🚀 Hybrid Search (Dense + Sparse)**
+   - Integrates **ChromaDB Semantic Vector Search (Dense)** and **BM25 Keyword Search (Sparse)**.
+   - Ensures high recall for both semantic intent and specific terms/identifiers (e.g. paper codes, equations, specific parameters).
+2. **🎯 Cross-Encoder Reranking**
+   - Retrieved candidate documents are reordered by a local **Cross-Encoder model** (`ms-marco-MiniLM-L-6-v2`), sending only the most relevant Top-K context chunks to the LLM.
+   - This represents the gold standard for reducing LLM hallucinations and boosting context precision.
+3. **🧠 Semantic Agent Routing**
+   - Automatically routes queries to **GlobalAgent** (for high-level outlines) or **NeedleAgent** (for detailed chunks) using a SentenceTransformers centroid classifier, overcoming the context-window limitations of local LLMs on long documents.
+4. **🛡️ Online Self-RAG Guardrail**
+   - Translates offline LLM-as-a-judge entailment evaluation into a real-time inference guardrail. If the Faithfulness score of the generated answer falls below 4.0/5.0, it intercepts the hallucinated response and triggers an apologetic fallback log.
+5. **📊 Streamlit Web Console**
+   - Streamlines workflows via an elegant Web UI featuring progress bars, chapter/section outline tree views, paginated document chunk viewers, and in-place CRUD notes management.
+
+---
+
+## ✨ Advanced Features
+
+* **🛡️ Self-Correction & Fallback Guardrail**
+  - Chain-of-thought statement extraction and entailment checking run in a single batch prompt on the local Llama 3.1 instance, saving memory and processing overhead.
+* **📖 Hierarchical Summary Index**
+  - Generates independent summaries for chapters and sections based on the document's structure, visualized in a collapsible tree-view explorer.
+* **🧠 Embedding Agent Router**
+  - Routes queries semantically within 10ms by comparing query embeddings against predefined category centroids.
+* **🧪 Universal Academic Header Promoter**
+  - Promotes dual-column layouts and inconsistent headers (e.g., `**1. Introduction**` vs `**1** **Introduction**`) to standard Markdown structures for clean parsing.
+* **📝 In-place CRUD Notes Management**
+  - Create, view, edit, and delete notes directly on the sidebar workspace, backed by a local SQLite database.
+* **🔍 Study Studio & Paginated Viewer**
+  - Filter specific files to generate custom Study Guides, and read paginated Markdown chunks without switching tabs.
+* **🔒 Singleton Shared Embeddings**
+  - Implements a thread-safe singleton pattern for HuggingFaceEmbeddings to prevent redundant model weights and avoid PyTorch device conflicts on Apple Silicon.
+
+---
+
+## 🛠️ Technology Stack
+
+* **LLM Engine:** [Ollama](https://ollama.com/) (running `llama3.1` and `llama3.2`)
+* **Framework:** [LangChain](https://python.langchain.com/) (LCEL)
+* **Vector Database:** [ChromaDB](https://www.trychroma.com/)
+* **Embeddings:** HuggingFace `all-MiniLM-L6-v2` / `paraphrase-MiniLM-L6-v2`
+* **Reranker:** `cross-encoder/ms-marco-MiniLM-L-6-v2`
+* **Frontend:** Streamlit
+
+---
+
+## 🚀 Quick Start & Trial
+
+We provide two deployment options. We highly recommend **Option A (Docker Compose)** for a 1-click zero-setup experience.
+
+### 🐳 Option A: Docker Compose One-Click Launch (Highly Recommended)
+
+If you have [Docker](https://www.docker.com/) installed, simply run the following command in the root folder:
+
+```bash
+docker compose up -d
+```
+
+- **Auto Model Pulling**: The setup automatically pulls the necessary local models (`llama3.1` 8B & `llama3.2` 3B) in the background. Check progress with `docker logs -f localnotebooklm-ollama-init`.
+- **Open App**: Once completed, open your browser and navigate to **`http://localhost:8501`**.
+- **Data Persistence**: All your papers, database states, and models are stored securely in Docker Volumes.
+
+---
+
+### 🐍 Option B: Local Developer Environment (Manual Setup)
+
+If you want to modify code or run the project natively:
+
+#### 1. Setup Local Environment
+* Install **Ollama** and pull the models:
+  ```bash
+  ollama run llama3.1
+  ollama run llama3.2
+  ```
+* Create and activate a python virtual environment:
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate
+  ```
+* Install dependencies:
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+#### 2. Run Streamlit UI
+Start the web app:
+```bash
+python -m streamlit run UI.py
+```
+Open **`http://localhost:8501`** in your browser.
+
+#### 3. Run Unit Tests
+Validate router and online guardrail logic:
+```bash
+# Test agents and routing
+python -m unittest tests/test_agents.py
+
+# Test self-RAG guardrails and fallbacks
+python -m unittest tests/test_guardrail.py
+```
+
+#### 4. Run RAG Quality Evaluation
+Evaluate Context Relevance and Faithfulness using LLM-as-a-judge and similarity metrics:
+```bash
+PYTHONPATH=. python tests/evaluate_rag.py
+```
+
+---
+
+## 🐳 Deployment & Security Policy
+
+This project supports **Local Docker air-gapped deployment** and **Fly.io cloud hosting** with persistent, encrypted volume mounts.
+
+*   **🔒 Zero API Leaks**: Vector embedding and LLM inference run locally inside your own container. No data is sent to external APIs.
+*   **🛡️ Virtualization Isolation**: Deployed inside isolated MicroVMs (Firecracker) on Fly.io, offering hardware-level security.
+*   **💾 Encrypted Storage**: Persistent volumes are encrypted at rest via LUKS by default.
+*   **🔌 Air-Gapped Ready**: Easily run on internal local networks for absolute privacy.
+
+Detailed deployment instructions: **[deployment/README.md](file:///Users/ut/Desktop/IlliniRAG/deployment/README.md)**.
+
 
 
