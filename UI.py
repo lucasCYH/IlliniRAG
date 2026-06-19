@@ -127,7 +127,8 @@ with st.sidebar:
             progress_bar.progress(percent, text=text)
             
         # Ingest with progress callback
-        ingestion.ingest_document(temp_path, progress_callback=update_progress)
+        enable_summary = st.session_state.get("enable_summary_index", True)
+        ingestion.ingest_document(temp_path, progress_callback=update_progress, enable_summary=enable_summary)
         st.success(f"Successfully ingested {uploaded_file.name}")
         # Reset uploader and reload retriever
         st.session_state.uploader_key += 1
@@ -139,6 +140,7 @@ with st.sidebar:
     st.divider()
     st.subheader("⚙️ Settings")
     st.toggle("全域摘要模式 (Global Mode)", key="global_mode", value=False, help="開啟後將強制使用全域大綱/摘要檢索模式；關閉時則依問題自動進行語意路由。")
+    st.toggle("啟用文件摘要索引 (Generate Summaries)", key="enable_summary_index", value=True, help="開啟後將在導入時自動生成章節與段落摘要以支援全域大綱檢索；關閉可大幅加快上傳速度。")
 
     st.divider()
     st.subheader("Uploaded Documents")
@@ -318,6 +320,27 @@ with col1:
                                     st.info(sec_summary)
 
 # Right Column: Chat Interface
+def render_messages_reversed(messages_list):
+    """
+    純粹、乾淨的歷史紀錄倒序渲染器（不包含任何 Spinner 與模型推理邏輯）
+    """
+    turns = []
+    i = 0
+    while i < len(messages_list):
+        if i + 1 < len(messages_list) and messages_list[i]["role"] == "user" and messages_list[i+1]["role"] == "assistant":
+            turns.append([messages_list[i], messages_list[i+1]])
+            i += 2
+        else:
+            turns.append([messages_list[i]])
+            i += 1
+            
+    for idx, turn in enumerate(reversed(turns)):
+        if idx > 0:
+            st.divider()
+        for msg in turn:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
 with col2:
     st.subheader("💬 Chat")
     
@@ -326,74 +349,101 @@ with col2:
     if "chat_history" not in st.session_state:
         st.session_state.chat_history = []
         
-    # Display chat
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    user_input = st.chat_input("Ask about your documents...")
+    
+    # ---------------------------------------------------------
+    # 【核心破局點 1】物理劃分地盤
+    # 無論有沒有輸入、模型有沒有在跑，這兩個容器的相對位置在網頁上一開始就定死！
+    # ---------------------------------------------------------
+    active_turn_container = st.container()  # 最上方：永遠只放當前這一輪 (Q2 + Thinking)
+    history_container = st.container()      # 下方：老老實實放過去所有的歷史對話 (Q1 + A1)
+    
+    # ---------------------------------------------------------
+    # 【核心破局點 2】在腳本一啟動，立刻在下方渲染現有的所有歷史紀錄
+    # 這樣當你輸入 Q2 的瞬間，Q1 和 A1 就已經穩穩地躺在下方了，絕對不會因為 Spinner 轉圈而被凍結隱藏！
+    # ---------------------------------------------------------
+    if st.session_state.messages:
+        with history_container:
+            st.divider()
+            st.caption("⌛ 歷史對話 (History)")
+            render_messages_reversed(st.session_state.messages)
             
-    if user_input := st.chat_input("Ask about your documents..."):
-        st.session_state.messages.append({"role": "user", "content": user_input})
-        with st.chat_message("user"):
-            st.markdown(user_input)
-            
-        with st.chat_message("assistant"):
-            with st.spinner("Thinking... (The first global query may take a few seconds to load the routing model)"):
-                try:
-                    # Clear routing state caches before invoking
-                    st.session_state["last_routing_decision"] = ""
-                    st.session_state["last_agent_name"] = ""
-
-                    response = rag_chain.invoke({
-                        "input": user_input,
-                        "chat_history": st.session_state.chat_history
-                    })
-                    answer = response["answer"]
-                    
-                    # Process and format citations
-                    citation_texts = []
-                    seen_citations = set()
-                    for doc in response["context"]:
-                        source = doc.metadata.get("source", "Unknown")
-                        chapter_info = doc.metadata.get("chapter_info")
-                        if not chapter_info:
-                            # Build context representation for needle matches
-                            h1 = doc.metadata.get("Header 1")
-                            h2 = doc.metadata.get("Header 2")
-                            if h1 and h2:
-                                chapter_info = f"{h1} > {h2}"
-                            elif h1:
-                                chapter_info = h1
-                            else:
-                                chapter_info = "Section details"
+    # ---------------------------------------------------------
+    # 【核心破局點 3】處理當前新輸入的 Q2 與推理
+    # ---------------------------------------------------------
+    if user_input:
+        # 清空路由快取
+        st.session_state["last_routing_decision"] = ""
+        st.session_state["last_agent_name"] = ""
+        
+        # 回到最上方的活動對話框，單獨渲染當前這一輪
+        with active_turn_container:
+            # 1. 渲染新問題 Q2
+            with st.chat_message("user"):
+                st.markdown(user_input)
+                
+            # 2. 渲染專屬於 Q2 的助理對話框與 Spinner
+            # 此時，上方的對話框內只有 Spinner 在轉，而下方的 history_container 早已渲染完畢，兩者完美並存！
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking... (The first global query may take a few seconds to load the routing model)"):
+                    try:
+                        response = rag_chain.invoke({
+                            "input": user_input,
+                            "chat_history": st.session_state.chat_history
+                        })
+                        answer = response["answer"]
                         
-                        citation = f"`{source}` ({chapter_info})"
-                        if citation not in seen_citations:
-                            seen_citations.add(citation)
-                            citation_texts.append(citation)
+                        # 處理與格式化引用來源
+                        citation_texts = []
+                        seen_citations = set()
+                        for doc in response["context"]:
+                            source = doc.metadata.get("source", "Unknown")
+                            chapter_info = doc.metadata.get("chapter_info")
+                            if not chapter_info:
+                                h1 = doc.metadata.get("Header 1")
+                                h2 = doc.metadata.get("Header 2")
+                                if h1 and h2:
+                                    chapter_info = f"{h1} > {h2}"
+                                elif h1:
+                                    chapter_info = h1
+                                else:
+                                    chapter_info = "Section details"
+                                
+                                citation = f"`{source}` ({chapter_info})"
+                                if citation not in seen_citations:
+                                    seen_citations.add(citation)
+                                    citation_texts.append(citation)
 
-                    # Append formatted sources to response
-                    if citation_texts:
-                        answer += "\n\n**Sources:**\n" + "\n".join([f"- {c}" for c in citation_texts])
-                    
-                    # Display routing decision information
-                    decision_reason = st.session_state.get("last_routing_decision", "")
-                    agent_name = st.session_state.get("last_agent_name", "")
-                    if agent_name:
-                        answer += f"\n\n*(Routed via **{agent_name}** - Reason: {decision_reason})*"
+                        if citation_texts:
+                            answer += "\n\n**Sources:**\n" + "\n".join([f"- {c}" for c in citation_texts])
                         
-                    st.markdown(answer)
-                    
-                    with st.expander("🔍 View Raw Context"):
-                        for i, doc in enumerate(response["context"]):
-                            source = doc.metadata.get('source', 'Unknown')
-                            st.write(f"**Source {i+1}: {source}**")
-                            st.write(doc.page_content[:300] + "...")
-                            st.divider()
+                        decision_reason = st.session_state.get("last_routing_decision", "")
+                        agent_name = st.session_state.get("last_agent_name", "")
+                        if agent_name:
+                            answer += f"\n\n*(Routed via **{agent_name}** - Reason: {decision_reason})*"
                             
-                    st.session_state.messages.append({"role": "assistant", "content": answer})
-                    st.session_state.chat_history.extend([
-                        HumanMessage(content=user_input),
-                        AIMessage(content=answer)
-                    ])
-                except Exception as e:
-                    st.error(f"An error occurred: {e}")
+                        # 3. 轉圈圈結束，原地把答案 A2 渲染出來
+                        st.markdown(answer)
+                        
+                        with st.expander("🔍 View Raw Context"):
+                            for i, doc in enumerate(response["context"]):
+                                source = doc.metadata.get('source', 'Unknown')
+                                st.write(f"**Source {i+1}: {source}**")
+                                w_content = doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content
+                                st.write(w_content)
+                                st.divider()
+                                
+                        # 4. 【高光時刻】當這一輪完美落幕後，我們才把 Q2 和 A2 寫入 session_state
+                        # 這樣一來，下一次你再輸入 Q3 時，這一輪就會自動被上面的 history_container 收納進歷史紀錄中
+                        st.session_state.messages.append({"role": "user", "content": user_input})
+                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                        st.session_state.chat_history.extend([
+                            HumanMessage(content=user_input),
+                            AIMessage(content=answer)
+                        ])
+                        
+                        # 5. 強制重繪，讓這一輪生成的 A2 順利融入下方的歷史紀錄大軍中，完美翻轉
+                        st.rerun()
+
+                    except Exception as e:
+                        st.error(f"An error occurred: {e}")

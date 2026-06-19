@@ -8,6 +8,7 @@ generate summaries using an LLM, and store/retrieve them in dedicated Chroma col
 
 import os
 import re
+import json
 import concurrent.futures
 from typing import List, Dict, Any
 from langchain_community.vectorstores import Chroma
@@ -61,6 +62,73 @@ def generate_summary(text: str, level: str, title: str) -> str:
         fallback_text = " ".join(words[:50]) + "..."
         return f"[Fallback Summary for {level} '{title}']: {fallback_text}"
 
+def generate_chapter_and_sections_summaries(ch_name: str, ch_text: str, ch_sections: List[str]) -> Dict[str, Any]:
+    """Generate chapter summary and summaries for all its sections in a single LLM call."""
+    if not ch_sections:
+        # No sections, generate chapter summary only
+        prompt = (
+            f"You are a helpful academic assistant.\n"
+            f"Provide a concise summary (max 150 words) for the chapter titled '{ch_name}'.\n"
+            f"Focus on the main ideas, structure, and key details.\n\n"
+            f"Content:\n{ch_text[:6000]}"
+        )
+        try:
+            llm = Ollama(model=config.SUMMARY_MODEL, temperature=0)
+            summary = llm.invoke(prompt).strip()
+            return {"chapter_summary": summary, "sections": {}}
+        except Exception as e:
+            print(f"Warning: Failed to generate summary for chapter '{ch_name}': {e}")
+            return {"chapter_summary": f"[Fallback Summary for chapter '{ch_name}']", "sections": {}}
+
+    # We have sections, request JSON
+    prompt = (
+        f"You are a helpful academic assistant.\n"
+        f"You are given a chapter from an academic paper titled '{ch_name}'.\n"
+        f"This chapter contains the following sections: {', '.join(ch_sections)}.\n\n"
+        f"Please provide:\n"
+        f"1. A concise summary (max 150 words) for the entire chapter.\n"
+        f"2. A concise summary (max 100 words) for each section listed above based on the text.\n\n"
+        f"You MUST format your response strictly as a JSON object with the following schema:\n"
+        f"{{\n"
+        f"  \"chapter_summary\": \"string\",\n"
+        f"  \"sections\": {{\n"
+        f"    \"Section Name 1\": \"string\",\n"
+        f"    \"Section Name 2\": \"string\"\n"
+        f"  }}\n"
+        f"}}\n\n"
+        f"Content:\n{ch_text[:6000]}"
+    )
+    try:
+        llm = Ollama(model=config.SUMMARY_MODEL, temperature=0, format="json")
+        response = llm.invoke(prompt).strip()
+        result = json.loads(response)
+        if "chapter_summary" in result and isinstance(result.get("sections"), dict):
+            # Normalize keys to match exactly
+            normalized_sections = {}
+            for sec in ch_sections:
+                matched_key = None
+                for k in result["sections"].keys():
+                    if k.strip().lower() == sec.strip().lower():
+                        matched_key = k
+                        break
+                if matched_key:
+                    normalized_sections[sec] = result["sections"][matched_key]
+                else:
+                    print(f"Warning: Section '{sec}' missing in JSON response for chapter '{ch_name}'.")
+            result["sections"] = normalized_sections
+            return result
+    except Exception as e:
+        print(f"Error in batch generation for chapter '{ch_name}': {e}")
+        
+    # Fallback to individual summaries if JSON generation/parsing fails
+    print(f"Falling back to individual summaries for chapter '{ch_name}'")
+    ch_summary = generate_summary(ch_text, "chapter", ch_name)
+    return {
+        "chapter_summary": ch_summary,
+        "sections": {},
+        "need_fallback_sections": True
+    }
+
 def generate_hierarchical_summary(docs: List[Document], doc_id: int, filename: str, progress_callback=None):
     """
     Groups docs by Header 2 (chapters) and Header 3 (sections) if possible,
@@ -98,48 +166,104 @@ def generate_hierarchical_summary(docs: List[Document], doc_id: int, filename: s
                 sections[key] = []
             sections[key].append(doc.page_content)
 
-    total_tasks = len(chapters) + len(sections)
+    total_tasks = len(chapters)
     if total_tasks == 0:
         if progress_callback:
             progress_callback(100, "No content headers found to summarize.")
         return
 
+    # Map from chapter name to section names under it
+    chapter_to_sections = {}
+    for ch_name in chapters.keys():
+        chapter_to_sections[ch_name] = [s_name for (c_name, s_name) in sections.keys() if c_name == ch_name]
+
     completed_tasks = 0
-    
-    # 1. Process Chapters
     chapter_docs = []
-    if chapters:
-        print(f"Summarizing {len(chapters)} Chapters in parallel...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {
-                executor.submit(generate_summary, "\n".join(contents), "chapter", h1): h1 
-                for h1, contents in chapters.items()
-            }
+    section_docs = []
+    
+    print(f"Summarizing {len(chapters)} Chapters in parallel...")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(
+                generate_chapter_and_sections_summaries,
+                ch_name,
+                "\n".join(chapters[ch_name]),
+                chapter_to_sections[ch_name]
+            ): ch_name
+            for ch_name in chapters.keys()
+        }
+        
+        for future in concurrent.futures.as_completed(futures):
+            ch_name = futures[future]
+            try:
+                result = future.result()
+            except Exception as e:
+                print(f"Exception during batch generation for chapter '{ch_name}': {e}")
+                result = {
+                    "chapter_summary": f"[Error generating summary for chapter '{ch_name}']: {e}",
+                    "sections": {},
+                    "need_fallback_sections": True
+                }
             
-            for future in concurrent.futures.as_completed(futures):
-                h1 = futures[future]
-                try:
-                    summary = future.result()
-                except Exception as e:
-                    summary = f"[Error generating summary for chapter '{h1}']: {e}"
-                    print(f"Error for chapter '{h1}': {e}")
-                    
-                chapter_docs.append(Document(
-                    page_content=summary,
+            # Save chapter summary document
+            chapter_docs.append(Document(
+                page_content=result["chapter_summary"],
+                metadata={
+                    "doc_id": doc_id,
+                    "source": filename,
+                    "chapter": ch_name,
+                    "level": "chapter",
+                    "title": ch_name
+                }
+            ))
+            
+            # Save section summary documents
+            for sec_name, sec_summary in result.get("sections", {}).items():
+                section_docs.append(Document(
+                    page_content=sec_summary,
                     metadata={
                         "doc_id": doc_id,
                         "source": filename,
-                        "chapter": h1,
-                        "level": "chapter",
-                        "title": h1
+                        "chapter": ch_name,
+                        "section": sec_name,
+                        "level": "section",
+                        "title": f"{ch_name} > {sec_name}"
                     }
                 ))
-                completed_tasks += 1
-                if progress_callback:
-                    progress_callback(
-                        int((completed_tasks / total_tasks) * 100),
-                        f"Generated chapter summary for: {h1}"
-                    )
+            
+            # Check for fallback sections if any were missed or if explicitly flagged
+            missing_sections = []
+            if result.get("need_fallback_sections", False):
+                missing_sections = chapter_to_sections[ch_name]
+            else:
+                for sec_name in chapter_to_sections[ch_name]:
+                    if sec_name not in result.get("sections", {}):
+                        missing_sections.append(sec_name)
+            
+            if missing_sections:
+                print(f"Generating individual summaries for {len(missing_sections)} missing sections in chapter '{ch_name}'...")
+                for sec_name in missing_sections:
+                    sec_content_list = sections.get((ch_name, sec_name), [])
+                    sec_text = "\n".join(sec_content_list)
+                    sec_summary = generate_summary(sec_text, "section", sec_name)
+                    section_docs.append(Document(
+                        page_content=sec_summary,
+                        metadata={
+                            "doc_id": doc_id,
+                            "source": filename,
+                            "chapter": ch_name,
+                            "section": sec_name,
+                            "level": "section",
+                            "title": f"{ch_name} > {sec_name}"
+                        }
+                    ))
+            
+            completed_tasks += 1
+            if progress_callback:
+                progress_callback(
+                    int((completed_tasks / total_tasks) * 100),
+                    f"Generated chapter summary for: {ch_name} (with sections)"
+                )
 
     # Save Chapters to Chroma
     if chapter_docs:
@@ -147,42 +271,6 @@ def generate_hierarchical_summary(docs: List[Document], doc_id: int, filename: s
         chapter_store.add_documents(chapter_docs)
         chapter_store.persist()
         print(f"Saved {len(chapter_docs)} chapter summaries to Chroma.")
-
-    # 2. Process Sections
-    section_docs = []
-    if sections:
-        print(f"Summarizing {len(sections)} Sections in parallel...")
-        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {
-                executor.submit(generate_summary, "\n".join(contents), "section", h2): (h1, h2) 
-                for (h1, h2), contents in sections.items()
-            }
-            
-            for future in concurrent.futures.as_completed(futures):
-                h1, h2 = futures[future]
-                try:
-                    summary = future.result()
-                except Exception as e:
-                    summary = f"[Error generating summary for section '{h2}']: {e}"
-                    print(f"Error for section '{h2}' in chapter '{h1}': {e}")
-                    
-                section_docs.append(Document(
-                    page_content=summary,
-                    metadata={
-                        "doc_id": doc_id,
-                        "source": filename,
-                        "chapter": h1,
-                        "section": h2,
-                        "level": "section",
-                        "title": f"{h1} > {h2}"
-                    }
-                ))
-                completed_tasks += 1
-                if progress_callback:
-                    progress_callback(
-                        int((completed_tasks / total_tasks) * 100),
-                        f"Generated section summary for: {h2} in {h1}"
-                    )
 
     # Save Sections to Chroma
     if section_docs:

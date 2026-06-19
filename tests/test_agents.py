@@ -100,16 +100,21 @@ class TestHierarchicalSummary(unittest.TestCase):
 
     @patch('backend.summary_hierarchical._get_chapter_store')
     @patch('backend.summary_hierarchical._get_section_store')
-    @patch('backend.summary_hierarchical.generate_summary')
-    def test_generate_hierarchical_summary(self, mock_gen_summary, mock_sec_store_fn, mock_ch_store_fn):
+    @patch('backend.summary_hierarchical.generate_chapter_and_sections_summaries')
+    def test_generate_hierarchical_summary(self, mock_gen_batch, mock_sec_store_fn, mock_ch_store_fn):
         # Mock Chroma stores
         mock_ch_store = MagicMock()
         mock_sec_store = MagicMock()
         mock_ch_store_fn.return_value = mock_ch_store
         mock_sec_store_fn.return_value = mock_sec_store
         
-        # Mock generator summary function
-        mock_gen_summary.return_value = "Mocked Summary Paragraph"
+        # Mock batch generator to return chapter and section summaries
+        def side_effect_batch(ch_name, ch_text, ch_sections):
+            return {
+                "chapter_summary": f"Mocked Chapter Summary for {ch_name}",
+                "sections": {sec: f"Mocked Section Summary for {sec}" for sec in ch_sections}
+            }
+        mock_gen_batch.side_effect = side_effect_batch
 
         # Mock Docs
         docs = [

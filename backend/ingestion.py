@@ -20,7 +20,7 @@ def get_file_md5(file_path):
             hash_md5.update(chunk)
     return hash_md5.hexdigest()
 
-def ingest_document(file_path, progress_callback=None):
+def ingest_document(file_path, progress_callback=None, enable_summary=True):
     print(f"Ingesting document: {file_path}")
     
     file_md5 = get_file_md5(file_path)
@@ -106,7 +106,7 @@ def ingest_document(file_path, progress_callback=None):
         progress_callback(55, "Analyzing document structure to generate chapter/section outlines...")
         
     # ---- Hierarchical Document Summary Index ----
-    if config.ENABLE_SUMMARY_INDEX:
+    if enable_summary and config.ENABLE_SUMMARY_INDEX:
         from backend import summary_hierarchical
         
         def sub_progress(percent, text):
