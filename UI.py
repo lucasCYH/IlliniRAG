@@ -8,7 +8,7 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 
-from backend import db, ingestion, retriever, studio, podcast, router, config
+from backend import db, ingestion, retriever, studio, router, config
 
 # --- 1. Web UI Basic Settings ---
 st.set_page_config(page_title="Local NotebookLM", layout="wide")
@@ -246,23 +246,7 @@ with col1:
                     guide = studio.generate_study_guide(selected_ids)
                     st.markdown(guide)
                     
-            if st.button("🎧 Generate Audio Podcast"):
-                with st.spinner("Writing script and synthesizing voices..."):
-                    res = podcast.generate_podcast_audio(selected_ids)
-                    warning_msg = None
-                    if res and len(res) == 3:
-                        audio_file, script, warning_msg = res
-                    else:
-                        audio_file, script = res
-                        
-                    if warning_msg:
-                        st.warning(warning_msg)
-                        
-                    if audio_file:
-                        st.audio(audio_file)
-                    st.markdown("**Podcast Script:**")
-                    st.text(script)
-                
+
     with tab3:
         st.subheader("🔍 Document Viewer")
         st.caption("Rendered preview of your ingested documents.")

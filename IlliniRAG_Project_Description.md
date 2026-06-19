@@ -21,7 +21,7 @@
 ├────────────────────────────────────┬────────────────────────────────────┤
 │         左側工作區 (Workspace)       │        右側對話區 (Chat Studio)    │
 │  1. 📝 筆記管理 (Notes CRUD)        │  - 歷史上下文感知對話              │
-│  2. 🎙️ 學習工坊 (Studio & Podcast)  │  - 自動語意路由判定與來源標記      │
+│  2. 🎨 學習工坊 (Notebook Studio)   │  - 自動語意路由判定與來源標記      │
 │  3. 🔍 文件閱讀 (Document Viewer)   │  - 實時 Raw Context 展開檢視      │
 │  4. 📊 大綱瀏覽 (Summary Viewer)    │                                    │
 └────────────────────────────────────┴────────────────────────────────────┘
@@ -34,9 +34,8 @@
 2.  **🧠 語意代理路由器 (Semantic Agent Router)**
     *   自動將問題分流至 **GlobalAgent**（全域大綱檢索，用於回答如「這篇論文的整體貢獻與架構為何？」）或 **NeedleAgent**（細節檢索，用於回答如「這篇論文使用的 Mosaic 數據增強技術具體如何運作？」）。
     *   在回答底部會清晰標記 **Sources**（引用來源文件與章節）與 **Routing**（路由決策日誌），保障 AI 生成答案的可解釋性（Explainability）。
-3.  **🎙️ Notebook Studio 學習工作坊 (Studio & Audio Podcast)**
+3.  **🎨 Notebook Studio 學習工作坊**
     *   **Study Guide 生成**：一鍵分析多份選定文件，提取關鍵概念並生成客製化的 Q&A 與 FAQ 列表。
-    *   **雙主播 Podcast 語音合成**：系統能自動將選定的學術論文改寫為雙人對話的廣播劇腳本（Host A 與 Host B），並調用 macOS 系統底層的 TTS 引擎（合成 Samantha 與 Alex 的英式/美式語音），最終將其無縫拼接為可播放的 `.wav` 音檔，實現「聽論文」的創新體驗。
 4.  **📝 本地筆記就地管理 (In-place Notes CRUD)**
     *   支援在閱讀文件的同時，隨手記錄、就地編輯（In-place Edit）與刪除學習筆記，所有數據持久化存儲於本地 SQLite 數據庫。
 5.  **🔍 分頁 Document Viewer**
@@ -218,31 +217,15 @@ graph TD
 *   **解決方案**：
     引入 **Cross-Encoder 深度重排機制**。在檢索出 Candidate Documents 後，不直接送入 LLM，而是使用本地運行的 `ms-marco-MiniLM-L-6-v2` 模型。與 Bi-Encoder（向量檢索）分開計算不同，Cross-Encoder 會將 Query 與 Document 拼接在一起進行注意力機制計算，得到極為精確的關聯度分數。我們只篩選評分最高的 Top-3 送入 LLM，將上下文長度壓縮了 70%，在**提速 3 倍**的同時，回答的 Faithfulness 指標大幅提升。
 
-### 挑戰 4：無雲端 API 依賴下，在本地流暢生成多角色雙主播 Podcast 音頻（多進程阻塞與排序拼接挑戰）
-*   **問題發現**：在本地實現「論文轉播 Podcast」功能時，現有的 Python TTS 庫（如 `pyttsx3`）語音極其生硬且難以在一行程式碼中切換說話角色。若使用雲端 TTS，則違反了專案「離線執行」的初衷。
-*   **底層分析**：macOS 系統內建高質量的語音合成引擎（`say` 指令）。然而，使用 Python 的 `subprocess` 直接同步（Synchronous/Blocking）調用 `say` 會造成主執行緒長時間阻塞，且單個線程生成一整段長對話極為緩慢。另外，如果使用並行多進程（Multiprocessing）異步生成各別段落，由於每句台詞的長度不一，各個進程完成時間不同，很容易產生輸出音檔順序錯亂或拼接錯位。
-*   **解決方案**：
-    我們在 `backend/podcast.py` 中設計了**基於進程池與 Sequence ID 排序的語音合成管線**：
-    1.  **劇本改寫**：調用本地 LLM 將論文 context 改寫為符合 Host A（Samantha，英音女聲）與 Host B（Alex，美音男聲）的對話劇本，並為每一行台詞分配一個遞增的 `Sequence ID`（例如 `001`、`002`...）。
-    2.  **進程池並發合成（Concurrency & Non-blocking）**：使用 Python 的 `concurrent.futures.ProcessPoolExecutor` 啟動進程池，並發執行 `subprocess` 調用系統的 `say` 指令。因為是多進程，主程序不會被同步阻塞，極大提升了生成效率。
-    3.  **嚴格排序與音訊拼接**：由於並發執行時進程完成時間不一，我們在生成臨時 `.aiff` 音檔時，檔名強制綁定 `Sequence ID`（例如 `/tmp/pod_001.aiff`）。在所有進程完成後，依據 `Sequence ID` 進行**嚴格排序**，最後再依序調用 macOS 原生的音訊工具進行轉碼與拼接，防止因生成速度差異造成雙主播台詞順序顛倒或時間線錯位。
-    4.  **音訊轉換與合併**：
-        ```bash
-        # 依序列隊調用 afconvert 轉換為高相容性 LEI16 WAVE 格式並進行音軌拼接
-        afconvert -f WAVE -d LEI16 /tmp/podcast.aiff podcast.wav
-        ```
-    5.  **環境邊界與優雅降級 (Robustness & Graceful Degradation)**：
-        在系統初始化時，`backend/podcast.py` 會預先執行 `say -v ?` 掃描系統已安裝的語音清單。若偵測到使用者未下載 Samantha (UK) 或 Alex (US) 語音包，系統會自動優雅降級（Graceful Degradation）至 macOS 內建必備的通用美音角色（如 Daniel 或 Fred），並在 Web UI 彈出提示引導使用者至系統設定下載高音質語音包，避免 `subprocess` 拋出找不到語音角色的例外。
-
-### 挑戰 5：本地 LLM 重複呼叫導致的超長文件導入延遲 (利用批次 JSON 結構化輸出優化與 UI 快慢路徑設計)
-*   **問題發現**：在導入一篇包含 15-20 個章節與子段落的學術論文時，原先系統需要對每個段落與章節分別呼叫本地的 Ollama LLM。這產生了大量的排隊與上下文切換開銷，在 M 系列 Mac 上上傳一份文件需要 3-4 分鐘，嚴重破壞用戶體驗。
+### 挑戰 4：本地 LLM 重複呼叫導致的超長文件導入延遲 (利用批次 JSON 結構化輸出優化與 UI 快慢路徑設計)
+*   **問題發現**：在導入一篇包含 15-20 個章節與子段落的學術論文時，原先系統需要對每個段落與章節分別呼叫本地的 Ollama LLM。這產生了大量的排隊與上下文切換開銷，在 M系列 Mac 上上傳一份文件需要 3-4 分鐘，嚴重破壞用戶體驗。
 *   **底層分析**：每個獨立的 LLM 呼叫都有啟動與推理開銷；且本地 LLM 的併發處理能力受限，多線程執行反而會因為 CPU/GPU 資源搶占而使速度劇降。
 *   **解決方案**：
     我們實施了**雙重優化方案**：
-    1.  **批次 JSON 結構化輸出 (Batch JSON Generation)**：重新設計了 `backend/summary_hierarchical.py` 的架構。先將章節（Chapter）及其底下所有的子段落（Sections）進行關聯綁定。在向 Ollama 發送請求時，開啟 `format=\"json\"` 模式，利用一個 Prompt 同時請求該章節摘要以及所有子段落的摘要，讓 LLM 輸出符合約定 Schema 的 JSON 對象。這將 LLM 呼叫次數**減少了 60%-75%**，整體導入時間縮短至 2 分鐘內，同時實作了健壯的單獨補齊（Fallback）備援機制。
+    1.  **批次 JSON 結構化輸出 (Batch JSON Generation)**：重新設計了 `backend/summary_hierarchical.py` 的架構。先將章節（Chapter）及其底下所有的子段落（Sections）進行關聯綁定。在向 Ollama 發送請求時，開啟 `format="json"` 模式，利用一個 Prompt 同時請求該章節摘要以及所有子段落的摘要，讓 LLM 輸出符合約定 Schema 的 JSON 對象。這將 LLM 呼叫次數**減少了 60%-75%**，整體導入時間縮短至 2 分鐘內，同時實作了健壯的單獨補齊（Fallback）備援機制。
     2.  **UI 快慢路徑設計 (UI Ingestion Fast-Path Toggle)**：在 Streamlit 側邊欄 Settings 中新增一個 `啟用文件摘要索引 (Generate Summaries)` 的開關。若使用者此時不需要全域大綱問答，可將其關閉，系統會直接跳過大綱生成模組，直接將父子文檔寫入資料庫與向量庫，將導入時間**壓縮至 4.4 秒內 (提升約 28 倍速度)**，實現零阻礙的即時閱讀。
 
-### 挑戰 6：本地資源限制下實時自我 RAG 護欄的延遲與記憶體衝突
+### 挑戰 5：本地資源限制下實時自我 RAG 護欄的延遲與記憶體衝突
 *   **問題發現**：引入線上護欄（Online Guardrail）意味著每次問答都需要執行額外的 LLM-as-a-Judge 檢驗。如果直接新增另一個 LLM 實例，會立即導致 Apple Silicon 上的 GPU 記憶體爆滿崩潰；且如果判定過程涉及多次 Prompt 交互，會讓問答延遲增加數倍。
 *   **底層分析**：本地硬體環境對記憶體極度敏感，因此必須複用同一個 Llama 3.1 執行個體（Singleton）。此外，多步式的「提取聲明 $\rightarrow$ 分別判斷蘊含 $\rightarrow$ 計算評分」雖然準確，但會帶來多次 LLM 呼叫的疊加延遲。
 *   **解決方案**：
@@ -344,7 +327,7 @@ graph TD
 
 *   **Developed IlliniRAG**, a privacy-first, fully local RAG system optimized for Apple Silicon via LangChain and Ollama, achieving 100% data privacy and zero cloud API dependency.
 *   **Designed a two-stage Hybrid Retrieval** (ChromaDB Vector + SQLite FTS5 BM25) coupled with a Cross-Encoder reranker, which compressed context length by 70%, accelerated local inference speed by 3x, and boosted sparse term recall.
-*   **Architected a lightweight semantic centroid router** to dispatch user intents within 10ms without heavy LLM calls, and implemented a multi-processing TTS pipeline utilizing Sequence-ID sorting to sync multi-host academic podcasts without race conditions.
+*   **Architected a lightweight semantic centroid router** to dispatch user intents within 10ms without heavy LLM calls, avoiding expensive LLM-based query classification.
 *   **Optimized the local ingestion pipeline** by implementing structured batch JSON summarization (reducing LLM calls by 60%+) and designing a UI-controlled fast-path toggle, compressing document upload times from minutes to under 5 seconds (a 28x speedup).
 *   **Integrated a standardized RAGAS framework** (LLM-as-a-judge) to quantitatively evaluate system performance, improving context relevance by 52% and faithfulness (reducing hallucinations) by 46% (4.7/5.0 score).
 *   **Implemented an online Self-RAG guardrail** utilizing the singleton Llama 3.1 instance, executing statement extraction and entailment verification in a single batch prompt to intercept hallucinations in real-time, enforcing a 4.0/5.0 faithfulness threshold.

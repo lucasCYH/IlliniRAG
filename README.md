@@ -45,7 +45,7 @@ IlliniRAG 是一個完全本地化、保護隱私的檢索增強生成 (RAG) 助
   - 支援筆記的建立、就地 (In-place) 編輯修改與刪除，大幅提升筆記記錄體驗。
 * **🔍 分頁 Document Viewer & Studio 篩選**
   - **Document Viewer**: 支援依上傳檔案進行切分，以選單形式切換個別文件的完整 Markdown Chunks。
-  - **Studio**: 新增多選框，可自由勾選特定的 PDF 文件以生成客製化的 Study Guide 或 Audio Podcast。
+  - **Studio**: 新增多選框，可自由勾選特定的 PDF 文件以生成客製化的 Study Guide。
 * **🔒 共享 Embeddings 單例模式**
   - 實作單例 (Singleton) 延遲載入共享 embeddings 實體，徹底解決 PyTorch 裝置重複載入 meta tensor 衝突，顯著節省本機記憶體。
 
