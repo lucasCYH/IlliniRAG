@@ -62,12 +62,33 @@ LocalNotebookLM 是一個完全本地化、保護隱私的檢索增強生成 (RA
 
 ---
 
-## 🚀 快速啟動
+## 🚀 快速啟動與試用 (Quick Start)
 
-### 1. 本地環境準備
-* 安裝 **Ollama** 並下載模型：
+我們提供兩種試用方式，最推薦使用 **方案 A (Docker Compose)**，無需在本機安裝任何 Python 環境或手動下載模型，即可一鍵運行。
+
+### 🐳 方案 A：Docker Compose 一鍵啟動 (最推薦，快速試用)
+
+只要您的電腦安裝了 [Docker](https://www.docker.com/)，即可在專案根目錄下執行以下指令：
+
+```bash
+docker compose up -d
+```
+
+- **自動化模型下載**：啟動後，系統會自動在背景下載所需的 AI 模型 (`llama3.1` 8B 與 `llama3.2` 3B)。您可以透過 `docker logs -f localnotebooklm-ollama-init` 查看下載進度。
+- **開啟服務**：模型下載完成後，打開瀏覽器訪問 **`http://localhost:8501`** 即可開始使用。
+- **資料持久化**：所有的論文資料與模型均會存在 Docker Volume 中，重啟容器資料不會遺失。
+
+---
+
+### 🐍 方案 B：本地開發環境啟動 (手動設定)
+
+如果您想在本機直接執行或修改程式碼：
+
+#### 1. 本地環境準備
+* 安裝 **Ollama** 並在終端機下載模型：
   ```bash
   ollama run llama3.1
+  ollama run llama3.2
   ```
 * 建立並啟動虛擬環境：
   ```bash
@@ -79,7 +100,7 @@ LocalNotebookLM 是一個完全本地化、保護隱私的檢索增強生成 (RA
   pip install -r requirements.txt
   ```
 
-### 2. 啟動 Streamlit UI
+#### 2. 啟動 Streamlit UI
 執行以下指令啟動 RAG 網頁服務：
 ```bash
 python -m streamlit run UI.py

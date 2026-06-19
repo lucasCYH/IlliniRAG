@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: localnotebooklm-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: localnotebooklm-ollama-init
+    depends_on:
+      - ollama
+    restart: "no"
+    entrypoint: >
+      sh -c "
+      echo 'Waiting for Ollama to start...';
+      until curl -s http://ollama:11434/api/tags > /dev/null; do
+        sleep 2;
+      done;
+      echo 'Ollama started! Pulling llama3.1 (8B)...';
+      curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"llama3.1\"}';
+      echo 'Pulling llama3.2 (3B) for summaries...';
+      curl -s -X POST http://ollama:11434/api/pull -d '{\"name\": \"llama3.2\"}';
+      echo 'All models pulled successfully!';
+      "
+
+  web-app:
+    build: .
+    container_name: localnotebooklm-web-app
+    ports:
+      - "8501:8501"
+    depends_on:
+      - ollama
+      - ollama-init
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - DB_PATH=/app/data/notebook_store.db
+      - CHROMA_PERSIST_DIR=/app/data/chroma_db
+    volumes:
+      - app_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  app_data:
