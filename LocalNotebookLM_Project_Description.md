@@ -328,7 +328,7 @@ graph TD
        * **Llama 3.1 (8B)**：使用 Ollama 運行的 `llama3.1:8b-instruct-q4_K_M` 版本，記憶體佔用約 **4.7 GB**。
        * **Qwen3.5 (2B)**：同樣使用 Ollama 運行的 `qwen3.5:2b` 版本，記憶體佔用約 **2.7 GB**。
        * **LLMLingua (XLM-RoBERTa-Large)**：運行於本地 HuggingFace/PyTorch 框架（綁定 MPS 加速），佔用約 **2.2 GB**。
-       * **常駐總開銷**：由於實施了時序解耦，VLM（2.7GB）與 Llama 3.1（4.7GB）在顯存中不重疊共存。因此，Ingestion 階段顯存佔用僅約 **2.8 GB**（Embeddings + Qwen3.5），Query 階段顯存佔用僅約 **7.0 GB**（Embeddings + LLMLingua + Llama 3.1）。這使本機記憶體常駐開銷始終保持在 MacBook Air 的 8GB 安全水準之下。
+       * **常駐總開銷**：由於實施了時序解耦，VLM (2.7GB) 與問答 LLM (4.7GB) 在顯存中不重疊共存。因此，Ingestion 階段顯存佔用僅約 **3.0 GB**（Embedding 執行緒與 PyTorch 運行時約 0.3GB + Qwen3.5 2.7GB），Query 階段顯存佔用僅約 **7.2 GB**（Embedding 約 0.3GB + LLMLingua 2.2GB + Llama 3.1 4.7GB）。這使本機記憶體常駐開銷始終保持在 MacBook Air 的 8GB 安全水準之下。
     2. **單例調度與資源分治機制（Singleton & Lifecycle Scheduling）**：
        * **時間軸解耦（Temporal Decoupling）**：VLM（Qwen3.5）只在**數據導入階段（Ingestion Phase）**被調用，用於提取 PDF 中的表格與公式圖片。此時，問答推理的 Llama 3.1 與 Prompt 壓縮 of LLMLingua 處於休眠狀態。而在**對話查詢階段（Querying Phase）**，只有 LLMLingua 與 Llama 3.1 處於活躍狀態。
        * **Ollama 模型動態卸載**：Ollama 內置了動態模型生命週期管理器。當 Ingestion 結束，Ollama 超過設定的 `keep_alive` 時間（我們在配置中優化為較短的暫留值，並在 Ingestion 結束時手動傳送 `keep_alive=0`）會自動釋放 Qwen3.5 的顯存空間。而在 Python 端，我們通過全域單例模式（Singleton Pattern）延遲加載模型，並在 Ingestion 與 Query 執行緒間進行了串行化（Serialization）調度，避免兩者同時競爭 MPS 計算核心。
@@ -351,7 +351,7 @@ graph TD
          * **SQLite `documents` 表** -> 遷移至 PostgreSQL 關係表，保留相同欄位，並加上 `INDEX` 優化查重速度。
          * **SQLite `notes` 表** -> 遷移至 PostgreSQL 關係表。
          * **SQLite `parent_chunks` 表** -> 欄位 `metadata_json` 從 SQLite 弱類型的 `TEXT` 映射為 PostgreSQL 高性能的 `JSONB` 格式，支持對元數據欄位（如 source, page）建立 GIN 索引，實現微秒級的屬性過濾。
-         * **SQLite FTS5 全文檢索** -> 遷移為 PostgreSQL 原生全文檢索。在 `parent_chunks` 表建立一個由 `page_content` 自動生成的計算列 `fts_vector tsvector` 並加上 `GIN` 索引，利用 `to_tsvector('english', page_content)` 進行詞幹化分析，使用 `ts_header` 與 `tsquery` 替代原本的 SQLite MATCH 語法。
+         * **SQLite FTS5 全文檢索** -> 遷移為 PostgreSQL 原生全文檢索。在 `parent_chunks` 表建立一個由 `page_content` 自動生成的計算列 `fts_vector tsvector` 並加上 `GIN` 索引。在學術論文檢索中，使用預設的 `english` 詞幹器（Porter Stemmer）有時會造成專有名詞過度裁剪（如 Swish 變成 swish、Masked 變成 mask 導致無法精準匹配）。因此，我們在 PostgreSQL 中會配置自定義的 `simple` 字典（Dictionary），對特定大寫演算法縮寫與專有術語跳過詞幹化（Stemming），以保障 FTS 精準召回。檢索時使用 `tsquery` 替代原本的 SQLite MATCH 語法。
          * **ChromaDB 向量儲存** -> 可以將向量儲存直接併入 PostgreSQL 中的 `child_chunks` 表中，使用 `vector(384)` 儲存 384 維度的 HuggingFace embeddings。藉由建立 `HNSW` (Hierarchical Navigable Small World) 或 `IVFFlat` 索引加速餘弦相似度 (`vector_cosine_ops`) 的計算。
        
        * **向量資料庫可擴展性與熱插拔 (Vector Store Scalability - Hot-Swapping ChromaDB to Qdrant/Milvus)**：
@@ -423,9 +423,9 @@ graph TD
 *   **量化實測指標**：
     *   **VLM 模型大小 (Qwen3.5 2B)**：~2.7 GB
     *   **LLM 模型大小 (Llama 3.1 8B)**：~4.7 GB
-    *   **無優化併發駐留顯存**：**~7.4 GB** (Llama 3.1 4.7GB + Qwen3.5 2.7GB 併發，易引發 Unified Memory 與系統快取衝突，造成效能雪崩)
-    *   **優化後顯存駐留上限**：**~4.7 GB** (兩模型時間軸完全解耦，VLM 處理結束後，立即觸發 `del qwen_model`、`gc.collect()` 與 `torch.mps.empty_cache()`，顯存佔用瞬間歸零，隨後才載入 Llama 3.1)
-    *   **記憶體節省率 (Memory Savings)**：**減少 36.5% 的峰值顯存開銷**，確保在 8GB/16GB 設備上流暢運行，避免觸發虛擬記憶體 Swap。
+    *   **無優化併發預估顯存**：**~9.9 GB** (Qwen3.5 2.7GB + Embeddings 0.3GB + LLMLingua 2.2GB + Llama 3.1 4.7GB 同時駐留，極易在 8GB/16GB 設備上造成系統 Swap 崩潰)
+    *   **優化後顯存駐留上限**：將 Ingestion 與 Query 階段在時間軸上完全解耦。Ingestion 階段顯存峰值約 **3.0 GB** (Qwen3.5 2.7GB + Embeddings 0.3GB)；Query 階段顯存峰值約 **7.2 GB** (Llama 3.1 4.7GB + LLMLingua 2.2GB + Embeddings 0.3GB)，VLM 處理結束後，立即觸發 `del qwen_model`、`gc.collect()` 與 `torch.mps.empty_cache()`，顯存佔用瞬間歸零，隨後才載入 Llama 3.1)
+    *   **記憶體節省率 (Memory Savings)**：**減少 27.3% 的峰值記憶體開銷**（從 9.9 GB 降至 7.2 GB），確保在 8GB/16GB 設備上流暢運行，避免觸發虛擬記憶體 Swap。
 
 ### 3. 線上自我 RAG 護欄與幻覺阻斷 (Online Self-RAG Guardrail Deflection Rate)
 *   **驗證方法**：在測試集（Golden Dataset）中隨機混入 15% 的對抗性盲區問題（Out-of-domain / 假前提誘導），執行 `tests/test_guardrail.py` 驗證線上蘊含檢驗（Entailment Judge）與 Fallback 攔截率。
