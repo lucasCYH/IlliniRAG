@@ -161,7 +161,7 @@ with st.sidebar:
             if doc_info:
                 try:
                     from backend import multimodal_parser
-                    multimodal_parser.run_pipeline(temp_path, doc_info["id"], model_name="qwen2-vl")
+                    multimodal_parser.process_multimodal_ingestion(temp_path, doc_info["id"], model_name="qwen2-vl")
                 except Exception as ex:
                     st.warning(f"Multimodal VLM parsing failed: {ex}")
                     

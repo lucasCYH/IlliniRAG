@@ -31,11 +31,10 @@ def ingest_document(file_path, progress_callback=None, enable_summary=True):
         if progress_callback:
             progress_callback(100, f"Cache Hit: '{existing_doc['filename']}' already exists.")
         
-        conn = db.sqlite3.connect(db.DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM parent_chunks WHERE document_id = ?", (existing_doc["id"],))
-        parent_count = cursor.fetchone()[0]
-        conn.close()
+        with db.db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM parent_chunks WHERE document_id = ?", (existing_doc["id"],))
+            parent_count = cursor.fetchone()[0]
         return parent_count, parent_count * 5
 
     if progress_callback:

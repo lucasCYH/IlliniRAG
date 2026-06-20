@@ -8,8 +8,13 @@ __pycache__/
 chroma_db/
 notebook_store.db
 notebook_store.db-journal
+notebook_store.db-wal
+notebook_store.db-shm
 parent_store.json
 parent_store.json.bak
+
+# Temporary crops & assets
+assets/multimodal_crops/
 
 # macOS system files
 .DS_Store

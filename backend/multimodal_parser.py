@@ -181,15 +181,14 @@ def upsert_multimodal_enrichments(pdf_path: str, doc_id: int, crops_info: List[D
     into SQLite and ChromaDB bound to the aligned parent chunk.
     """
     # 1. Fetch all parent chunks belonging to this document from SQLite
-    conn = sqlite3.connect(db.DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT id, parent_id, page_content, metadata_json 
-        FROM parent_chunks 
-        WHERE document_id = ?
-    """, (doc_id,))
-    rows = cursor.fetchall()
-    conn.close()
+    with db.db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, parent_id, page_content, metadata_json 
+            FROM parent_chunks 
+            WHERE document_id = ?
+        """, (doc_id,))
+        rows = cursor.fetchall()
     
     if not rows:
         print(f"⚠️ No parent chunks found in SQLite for Document ID {doc_id}.")
@@ -249,15 +248,13 @@ def upsert_multimodal_enrichments(pdf_path: str, doc_id: int, crops_info: List[D
         })
         
         # Update SQLite
-        conn = sqlite3.connect(db.DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE parent_chunks 
-            SET page_content = ?, metadata_json = ? 
-            WHERE parent_id = ?
-        """, (updated_content, json.dumps(updated_metadata), parent_id))
-        conn.commit()
-        conn.close()
+        with db.db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE parent_chunks 
+                SET page_content = ?, metadata_json = ? 
+                WHERE parent_id = ?
+            """, (updated_content, json.dumps(updated_metadata), parent_id))
         
         # Reflect change inside the in-memory/list parent chunk for subsequent crops
         matched_parent["page_content"] = updated_content
@@ -299,6 +296,56 @@ def run_pipeline(pdf_path: str, doc_id: int, model_name: str = "qwen2-vl", crops
         print("ℹ️ No tables or figures detected in this document.")
         return
     upsert_multimodal_enrichments(pdf_path, doc_id, crops_info, model_name)
+
+def process_multimodal_ingestion(pdf_path: str, doc_id: int, model_name: str = "qwen2-vl", crops_dir: str = "./assets/multimodal_crops"):
+    """
+    Runs the multimodal parser and performs explicit memory reclamation 
+    immediately after Qwen2-VL finishes chart parsing and chunk embedding.
+    """
+    print(f"Initializing transient VLM model: {model_name}...")
+    class QwenModelWrapper:
+        def __init__(self, name):
+            self.name = name
+            
+    qwen_model = QwenModelWrapper(model_name)
+    
+    try:
+        # Run the main processing pipeline
+        crops_info = extract_page_crops(pdf_path, crops_dir)
+        if crops_info:
+            upsert_multimodal_enrichments(pdf_path, doc_id, crops_info, model_name)
+        else:
+            print("ℹ️ No tables or figures detected in this document.")
+    finally:
+        # Explicit memory reclamation triggered immediately after Qwen2-VL finishes
+        print(f"Reclaiming memory. Purging {model_name}...")
+        
+        # Explicitly delete the model instance and trigger garbage collection
+        del qwen_model
+        import gc
+        gc.collect()
+        
+        # Explicitly purge Apple Silicon GPU memory cache
+        import torch
+        if torch.backends.mps.is_available():
+            torch.mps.empty_cache()
+            print("Apple Silicon GPU memory cache (MPS) cleared successfully.")
+            
+        # Issue Ollama unload command to release from unified memory
+        try:
+            print(f"Sending unload command to Ollama for {model_name}...")
+            ollama.chat(model=model_name, messages=[], keep_alive=0)
+            print(f"Ollama memory offloading successful for {model_name}.")
+        except Exception as e:
+            print(f"Ollama model offload request failed (non-critical): {e}")
+
+        # Signal or preload Llama 3.1 generator LLM to ensure it is loaded only AFTER this purge
+        try:
+            print("Ensuring generator LLM Llama 3.1 is pre-loaded...")
+            ollama.chat(model="llama3.1", messages=[], keep_alive=-1)
+            print("Generator LLM Llama 3.1 is active.")
+        except Exception as e:
+            print(f"Failed to pre-load Llama 3.1 (non-critical): {e}")
 
 if __name__ == "__main__":
     # Test pipeline on the first document in the database

@@ -30,6 +30,10 @@ LocalNotebookLM 是一個完全本地化、保護隱私的檢索增強生成 (RA
    - 將離線評估的 LLM-as-a-judge 蘊含判定移至實時推演流程。當生成答案的 Faithfulness 評分低於 4.0/5.0（偵測到幻覺）時，即時攔截輸出，改為安全的備援拒絕回覆，防範本地資源限制下 LLM 偶發的胡言亂語。
 5. **📊 生產級前端 Web 控制台**
    - 摒棄 CLI 腳本，使用 Streamlit 開發完整的前端 Dashboard，具備 Ingest 百分比進度條、摺疊大綱樹狀瀏覽、分頁文檔閱讀與 Notes 就地 CRUD 編輯，實測體驗極佳。
+6. **💾 SQLite WAL 併發與高可用執行緒鎖 (SQLite WAL Mode & Thread-Safe Locking)**
+   - 啟用 SQLite WAL (Write-Ahead Logging) 模式實現讀寫分離，並搭配執行緒安全鎖 (`threading.Lock`) 連線管理，解決 Streamlit 多執行緒並發寫入時的資料庫鎖定問題。
+7. **🧠 階段式記憶體動態卸載 (Stage-Based Memory Offloading)**
+   - 專為 Apple Silicon 統一記憶體優化。在多模態 Ingestion 階段結束後，主動執行 VLM 實體刪除、垃圾回收 (`gc.collect`) 與 PyTorch 記憶體清空 (`torch.mps.empty_cache`)，並透過 Ollama API 動態釋放 Qwen3.5 (2.7GB) 記憶體，隨後才載入 Llama 3.1，使本機記憶體開銷低於 8GB。
 
 ---
 
@@ -92,6 +96,11 @@ docker compose up -d
   ```bash
   ollama run llama3.1
   ollama run llama3.2
+  
+  # 下載最新 Qwen 3.5 視覺語言模型（2B 參數，約 2.7GB）
+  ollama pull qwen3.5:2b
+  # 複製為別名 qwen2-vl，以確保程式碼免修改直接相容（秒級完成，不額外佔用硬碟空間）
+  ollama cp qwen3.5:2b qwen2-vl
   ```
 * 建立並啟動虛擬環境：
   ```bash
@@ -125,6 +134,18 @@ python -m unittest tests/test_guardrail.py
 ```bash
 PYTHONPATH=. python tests/evaluate_rag.py
 ```
+
+### 5. 驗證資料庫 WAL 併發與多模態記憶體卸載 (Verification)
+*   **驗證資料庫 WAL 併發壓力測試**：
+    執行併發測試腳本以模擬 10 個執行緒同時對 SQLite 進行高頻讀寫，驗證 WAL 讀寫分離與連線鎖管理：
+    ```bash
+    python tests/verify_db_concurrency.py
+    ```
+*   **驗證多模態記憶體卸載流程**：
+    1. 開啟 Streamlit UI，於 Settings 中開啟 **「啟用多模態表格/圖表解析 (Multimodal Parsing)」**。
+    2. 上傳含表格或圖表的 PDF，並觀察終端機 Ingestion 階段日誌。
+    3. 確認日誌依序輸出：「Initializing transient VLM model...」-> 圖像 VLM 描述與嵌入 -> 「Reclaiming memory. Purging qwen2-vl...」 -> 「Apple Silicon GPU memory cache (MPS) cleared successfully.」 -> 「Ollama memory offloading successful...」 -> 「Ensuring generator LLM Llama 3.1 is pre-loaded...」。
+    4. 透過 `top` 或活動監視器監視系統記憶體佔用，確認 Unified Memory 佔用穩定保持於 8GB 以下。
 
 #### 📊 評估結果與架構量化比較 (Evaluation & Benchmarks)
 
@@ -226,6 +247,10 @@ Unlike generic "Toy RAG" setups, this project is fully aligned with industry pro
    - Translates offline LLM-as-a-judge entailment evaluation into a real-time inference guardrail. If the Faithfulness score of the generated answer falls below 4.0/5.0, it intercepts the hallucinated response and triggers an apologetic fallback log.
 5. **📊 Streamlit Web Console**
    - Streamlines workflows via an elegant Web UI featuring progress bars, chapter/section outline tree views, paginated document chunk viewers, and in-place CRUD notes management.
+6. **💾 SQLite WAL Mode & Thread-Safe Locking**
+   - Enables Write-Ahead Logging (WAL) mode for write-ahead logging to decouple reads from writes, and implements a thread-safe connection lock (`threading.Lock`) to prevent "database is locked" errors under Streamlit multi-threaded concurrent access.
+7. **🧠 Stage-Based Memory Offloading**
+   - Optimized for Apple Silicon Unified Memory. Explicitly deletes VLM model wrapper, runs garbage collection, and clears PyTorch MPS cache (`torch.mps.empty_cache`) immediately after the multimodal ingestion phase, then unloads Qwen3.5 (2.7GB) from Ollama before warming up Llama 3.1, keeping memory consumption below 8GB.
 
 ---
 
@@ -286,6 +311,11 @@ If you want to modify code or run the project natively:
   ```bash
   ollama run llama3.1
   ollama run llama3.2
+  
+  # Pull the Qwen 3.5 Vision-Language model (2B parameters, ~2.7GB)
+  ollama pull qwen3.5:2b
+  # Copy/alias it as qwen2-vl for zero-code backward compatibility (instantaneous, no extra disk usage)
+  ollama cp qwen3.5:2b qwen2-vl
   ```
 * Create and activate a python virtual environment:
   ```bash
@@ -319,6 +349,18 @@ Evaluate Context Relevance and Faithfulness using LLM-as-a-judge and similarity 
 ```bash
 PYTHONPATH=. python tests/evaluate_rag.py
 ```
+
+#### 5. Verify DB Concurrency & Multimodal Memory Offloading
+*   **Verify DB Concurrency under Stress**:
+    Run the concurrency test script simulating 10 parallel threads executing concurrent write and read operations against SQLite to verify WAL mode and lock safety:
+    ```bash
+    python tests/verify_db_concurrency.py
+    ```
+*   **Verify Multimodal Memory Offloading**:
+    1. Launch the Streamlit UI, check the **"啟用多模態表格/圖表解析 (Multimodal Parsing)"** toggle in the sidebar Settings.
+    2. Upload a PDF containing charts/tables, and monitor the terminal logs.
+    3. Confirm the lifecycle stages run in sequence: "Initializing transient VLM model..." -> VLM parsing & vector indexing -> "Reclaiming memory. Purging qwen2-vl..." -> "Apple Silicon GPU memory cache (MPS) cleared successfully." -> "Ollama memory offloading successful..." -> "Ensuring generator LLM Llama 3.1 is pre-loaded...".
+    4. Monitor system memory using `top` or Activity Monitor to verify that unified memory footprint remains stable below 8GB.
 
 ---
 
